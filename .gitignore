@@ -172,3 +172,13 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+.vscode/
+*.swp
+
+# Log files
+logs/
+*.log
+
+# Docker cache / data (if needed)
+# postgres_data/ # Be careful if you want to keep DB data locally

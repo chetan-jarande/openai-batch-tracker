@@ -1,0 +1,26 @@
+# Core FastAPI framework
+fastapi==0.115.12
+
+# ASGI server for FastAPI
+uvicorn==0.34.2
+
+# Pydantic for data validation (comes with FastAPI, but explicit is good)
+pydantic==2.11.3
+
+# Database ORM
+sqlalchemy==2.0.40
+
+# PostgreSQL driver
+psycopg2-binary>=2.9.9  # Use psycopg2 for non-binary in production if possible ## 2.9.10
+
+# For reading .env files
+python-dotenv==1.1.0
+
+# For HTML templating
+jinja2==3.1.6
+
+# For database migrations (optional but recommended for real projects)
+# alembic>=1.13.1,<1.14.0
+
+# OpenAI client
+openai==1.76.0
