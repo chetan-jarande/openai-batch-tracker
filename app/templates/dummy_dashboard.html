@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dummy OpenAI Batch Job Dashboard</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+          "Segoe UI Symbol";
+        margin: 20px;
+        background-color: #f8f9fa;
+        color: #212529;
+        font-size: 14px; /* Slightly smaller base font */
+      }
+      h1 {
+        color: #343a40;
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        background-color: #fff;
+        table-layout: auto; /* Adjust column widths based on content */
+      }
+      th,
+      td {
+        border: 1px solid #dee2e6;
+        padding: 10px 12px; /* Adjusted padding */
+        text-align: left;
+        vertical-align: middle; /* Center align vertically */
+        white-space: nowrap; /* Prevent text wrapping initially */
+      }
+      th {
+        background-color: #e9ecef;
+        font-weight: 600; /* Semibold */
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        white-space: normal; /* Allow header text to wrap */
+      }
+      td {
+        white-space: normal; /* Allow cell content to wrap */
+      }
+      tr:nth-child(even) {
+        background-color: #f8f9fa;
+      }
+      tr:hover {
+        background-color: #e9ecef;
+      }
+      .status {
+        font-weight: 500;
+        padding: 4px 8px;
+        border-radius: 0.25rem; /* Bootstrap style */
+        color: white;
+        text-align: center;
+        display: inline-block;
+        min-width: 90px; /* Ensure consistent width */
+        font-size: 0.85em; /* Smaller status text */
+        text-transform: capitalize; /* Capitalize status */
+      }
+      /* Status Colors (Refined) */
+      .status-pending {
+        background-color: #6c757d;
+      } /* Secondary */
+      .status-validating {
+        background-color: #ffc107;
+        color: #000;
+      } /* Warning */
+      .status-in_progress {
+        background-color: #0d6efd;
+      } /* Primary */
+      .status-finalizing {
+        background-color: #6f42c1;
+      } /* Indigo */
+      .status-completed {
+        background-color: #198754;
+      } /* Success */
+      .status-failed {
+        background-color: #dc3545;
+      } /* Danger */
+      .status-cancelled {
+        background-color: #adb5bd;
+        color: #000;
+      } /* Light */
+      .status-cancelling {
+        background-color: #fd7e14;
+      } /* Orange */
+      .status-expired {
+        background-color: #343a40;
+      } /* Dark */
+
+      .code {
+        font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+        background-color: #e9ecef;
+        padding: 2px 5px;
+        border-radius: 3px;
+        word-break: break-all;
+        font-size: 0.9em;
+        color: #d63384; /* Pinkish */
+      }
+      .timestamp {
+        font-size: 0.85em;
+        color: #6c757d; /* Muted color */
+      }
+      .file-link {
+        color: #0d6efd;
+        text-decoration: none;
+        font-size: 0.9em;
+      }
+      .file-link:hover {
+        text-decoration: underline;
+      }
+      .error-indicator {
+        color: #dc3545; /* Red */
+        font-weight: bold;
+        cursor: help; /* Indicate hoverable */
+      }
+      .container {
+        max-width: 95%; /* Use more screen width */
+        margin: 0 auto;
+        overflow-x: auto; /* Keep horizontal scroll for safety */
+      }
+      .summary {
+        margin-bottom: 20px;
+        font-size: 1.1em;
+      }
+      /* Add Tooltip Style for Errors */
+      .tooltip {
+        position: relative;
+        display: inline-block;
+      }
+      .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 300px; /* Adjust width as needed */
+        background-color: #555;
+        color: #fff;
+        text-align: left;
+        border-radius: 6px;
+        padding: 8px;
+        position: absolute;
+        z-index: 10; /* Ensure tooltip is on top */
+        bottom: 125%; /* Position above the element */
+        left: 50%;
+        margin-left: -150px; /* Use half of the width */
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 0.85em;
+        white-space: pre-wrap; /* Allow wrapping within tooltip */
+        word-wrap: break-word;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      }
+      .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Dummy OpenAI Batch Job Dashboard</h1>
+
+      <div class="summary">
+        Total Mock Batch Records: <strong>{{ total_count }}</strong>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Mock ID</th>
+            <th>OpenAI Batch ID</th>
+            <th>Status</th>
+            <th>Endpoint</th>
+            <th>Input File</th>
+            <th>Output File</th>
+            <th>Error Info</th>
+            <th>Created (OpenAI)</th>
+            <th>Expires (OpenAI)</th>
+            <th>Completed/Failed (OpenAI)</th>
+            <th>Created (System)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if batches %} {% for batch in batches %}
+          <tr>
+            <td>{{ batch.id }}</td>
+            <td><code class="code">{{ batch.openai_batch_id }}</code></td>
+            <td>
+              <span class="status status-{{ batch.status.value | lower }}">
+                {{ batch.status.value | replace('_', ' ') }}
+              </span>
+            </td>
+            <td>{{ batch.endpoint | default('N/A') }}</td>
+            <td>
+              {% if batch.input_file_id %}
+              <code class="code">{{ batch.input_file_id }}</code>
+              {% else %} N/A {% endif %}
+            </td>
+            <td>
+              {% if batch.output_file_id %}
+              <code class="code">{{ batch.output_file_id }}</code>
+              {% else %} N/A {% endif %}
+            </td>
+            <td>
+              {% if batch.error_file_id %}
+              <code class="code">{{ batch.error_file_id }}</code>
+              <span class="error-indicator tooltip"
+                >[File]
+                <span class="tooltiptext"
+                  >Error File ID: {{ batch.error_file_id }}</span
+                >
+              </span>
+              {% elif batch.errors and batch.errors.data %}
+              <span class="error-indicator tooltip"
+                >[Details]
+                <span class="tooltiptext">
+                  {% for error in batch.errors.data %} Code: {{ error.code |
+                  default('N/A') }} Param: {{ error.param | default('N/A') }}
+                  Line: {{ error.line | default('N/A') }} Message: {{
+                  error.message | default('') }} --- {% endfor %}
+                </span>
+              </span>
+              {% else %} N/A {% endif %}
+            </td>
+            <td class="timestamp">{{ batch.openai_created_at | unix_ts }}</td>
+            <td class="timestamp">{{ batch.expires_at | unix_ts }}</td>
+            <td class="timestamp">
+              {% if batch.completed_at %}{{ batch.completed_at | unix_ts }}
+              (Done) {% elif batch.failed_at %}{{ batch.failed_at | unix_ts }}
+              (Fail) {% elif batch.cancelled_at %}{{ batch.cancelled_at |
+              unix_ts }} (Cancel) {% else %} In Progress {% endif %}
+            </td>
+            <td class="timestamp">
+              {{ batch.created_at.strftime('%Y-%m-%d %H:%M UTC') if
+              batch.created_at else 'N/A' }}
+            </td>
+          </tr>
+          {% endfor %} {% else %}
+          <tr>
+            <td colspan="11" style="text-align: center; padding: 20px">
+              No mock batch requests found.
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>
