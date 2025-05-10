@@ -28,8 +28,8 @@ The entire application, including the database, is Dockerized for easy setup and
 │   │   └── api_v1.py                   # Main API router aggregating other routers
 │   ├── core/                           # Core components like configuration, logging
 │   │   ├── init.py
-│   │   ├── config.py                   # Pydantic settings management (env vars)
-│   │   └── logging_config.py           # Logging setup
+│   │   ├── config.py                   # ✅ Pydantic settings management (env vars)
+│   │   └── logging_config.py           # ✅ Logging setup
 │   ├── db/                             # Database related modules
 │   │   ├── init.py
 │   │   ├── base_class.py               # Base for SQLAlchemy models (declarative_base)
