@@ -1,45 +1,70 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.exc import OperationalError
 import logging
-import time
+from typing import Generator
 
-from app.core.config import settings # Import settings from config.py
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session as SQLAlchemySession
+
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
-# Create the SQLAlchemy engine using the database URL from settings
+# Create the SQLAlchemy engine
+# The pool_pre_ping argument helps in handling connections that might have been
+# closed by the database server.
 # pool_pre_ping=True checks connection validity before use
 # connect_args can be used for specific driver options if needed
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
-    # connect_args={"check_same_thread": False} # Needed only for SQLite
-)
+try:
+    engine = create_engine(
+        settings.sqlalchemy_database_url,
+        pool_pre_ping=True,
+        # echo=True,  # Uncomment for debugging SQL queries
+        # connect_args={"check_same_thread": False}, # Needed only for SQLite
+    )
+    logger.info(f"Database engine created for URL: {settings.sqlalchemy_database_url.replace(settings.POSTGRES_PASSWORD, '****') if settings.POSTGRES_PASSWORD else settings.sqlalchemy_database_url}")
+except Exception as e:
+    logger.exception(f"Failed to create database engine: {e}")
+    # Depending on the application's needs, you might want to exit or handle this critical failure.
+    raise
 
-# Create a configured "Session" class
-# autocommit=False ensures transactions are handled explicitly
-# autoflush=False prevents premature flushes, usually desired
+# Create a configured "SessionLocal" class
+# This class will then be used to create individual database sessions.
+# - autocommit=False: Changes are not committed automatically. You need to call session.commit().
+# - autoflush=False: Changes are not flushed to the DB automatically before queries.
+#                    This can be useful to manage the state of objects more explicitly.
+# - bind=engine: Associates this session configuration with our database engine.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base class for our ORM models
-Base = declarative_base()
-
-def get_db():
+def get_db() -> Generator[SQLAlchemySession, None, None]:
     """
-    Dependency function to get a database session.
+    Dependency to get a database session.
 
-    Yields a SQLAlchemy session for use in API endpoints.
-    Ensures the session is always closed, rolling back on exceptions.
+    This function is a generator that yields a database session.
+    It ensures that the session is always closed after the request is finished,
+    even if an error occurs.
+
+    Usage:
+        @app.get("/")
+        def read_root(db: SQLAlchemySession = Depends(get_db)):
+            # use db session here
+            ...
     """
-    db = SessionLocal()
+    db: Optional[SQLAlchemySession] = None
     try:
+        db = SessionLocal()
+        logger.debug(f"Database session {id(db)} opened.")
         yield db
-    except Exception:
-        db.rollback() # Rollback in case of errors
-        raise
+    except Exception as e:
+        logger.exception(f"Exception during database session {id(db) if db else 'N/A'}: {e}")
+        if db:
+            db.rollback() # Rollback in case of error
+        raise # Re-raise the exception to be handled by FastAPI error handlers
     finally:
-        db.close() # Always close the session
+        if db:
+            db.close()
+            logger.debug(f"Database session {id(db)} closed.")
+
+
 
 def init_db():
     """
@@ -75,16 +100,47 @@ def init_db():
             logger.exception("An unexpected error occurred during database initialization.")
             raise
 
-# Example usage (optional, for testing connection):
-# if __name__ == "__main__":
-#     from app.core.logging_config import setup_logging
-#     setup_logging()
-#     try:
-#         # Test database connection
-#         with engine.connect() as connection:
-#             print("Successfully connected to the database.")
-#         # Initialize DB (creates tables if they don't exist)
-#         init_db()
-#     except Exception as e:
-#         print(f"Database connection or initialization failed: {e}")
+
+# Optional: Function to test database connection
+def check_db_connection():
+    """
+    Checks if a connection to the database can be established.
+    """
+    try:
+        with engine.connect() as connection:
+            logger.info("Successfully connected to the database.")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to connect to the database: {e}")
+        logger.error(f"Database URL used: {settings.sqlalchemy_database_url.replace(settings.POSTGRES_PASSWORD, '****') if settings.POSTGRES_PASSWORD else settings.sqlalchemy_database_url}")
+        return False
+
+if __name__ == "__main__":
+    # This block allows testing the database connection independently.
+    # To run: python -m app.db.session
+    # (Ensure .env is set up or environment variables are available)
+    print("Checking database connection...")
+    if check_db_connection():
+        print("Database connection successful.")
+        # Example of using a session
+        print("Attempting to create a session...")
+        db_gen = get_db()
+        try:
+            session = next(db_gen)
+            print(f"Session created: {session}")
+            # You could perform a simple query here if models were defined and tables created
+            # e.g., session.execute(text("SELECT 1")).scalar_one()
+            print("Session usage example successful.")
+        except StopIteration:
+            print("Could not get DB session from generator.")
+        except Exception as e:
+            print(f"Error during session test: {e}")
+        finally:
+            if 'session' in locals() and session:
+                try:
+                    next(db_gen, None) # To trigger the finally block in get_db
+                except Exception:
+                    pass # Ignore errors during cleanup for this test
+    else:
+        print("Database connection failed. Please check your configuration and database server.")
 
