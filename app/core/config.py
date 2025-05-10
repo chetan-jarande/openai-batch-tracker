@@ -1,123 +1,113 @@
 import os
 import logging
-from pydantic_settings import BaseSettings
-# Assuming pydantic[postgres] is installed for PostgresDsn
-from pydantic import PostgresDsn, field_validator, Field, AnyUrl, SecretStr
-from dotenv import load_dotenv
 from functools import lru_cache
-from pathlib import Path
-from typing import Optional # Import Optional
+from typing import Optional
 
-# Load environment variables from a .env file if it exists
-# Useful for local development
-load_dotenv()
+from pydantic_settings import BaseSettings, SettingsConfigDict
+# from pydantic import PostgresDsn, field_validator, Field, AnyUrl, SecretStr
 
-# --- Nested Database Settings ---
-class DatabaseSettings(BaseSettings):
-    """Configuration specific to the database connection."""
-    # Use PostgresDsn for built-in validation of the connection string.
-    # The default value is provided as a string, which Pydantic validates
-    # at runtime if the environment variable is not set.
-    # Static type checkers (like Pylance) might flag the default string
-    # as incompatible with PostgresDsn, but this is expected and handled
-    # correctly by Pydantic during settings initialization.
-    URL: PostgresDsn = Field(  # type: ignore[assignment]
-        default="postgresql://user:password@db:5432/batch_tracker_db",
-        validation_alias="DATABASE_URL", # Read from DATABASE_URL env var
-        description="The connection string for the PostgreSQL database."
-    )
-    ECHO_SQL: bool = Field(default=False, validation_alias="DATABASE_ECHO_SQL") # Example: control SQL echoing
-
-    # Add validator inspired by Pydantic docs to ensure DB name is present
-    @field_validator('URL')
-    @classmethod
-    def check_db_name(cls, v: AnyUrl | None) -> AnyUrl | None:
-        """Ensures the database name path component is present in the DSN."""
-        # The input 'v' is already validated as PostgresDsn format by Pydantic
-        # before this validator runs (if it's a valid DSN structure).
-        # We check the 'path' attribute which holds the database name part.
-        if v and (not v.path or len(v.path) <= 1): # Check if path is None, empty or just '/'
-             raise ValueError('Database name must be provided in the DATABASE_URL path (e.g., postgresql://.../my_database)')
-        return v
-
-    class Config:
-        case_sensitive = False
-        # Ensure .env file is loaded if specified (pydantic-settings v2 behavior)
-        # env_file = '.env' # Uncomment if needed explicitly
-
+# Configure logging for early setup issues
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
-    """Main application configuration settings."""
-    # Nested database configuration
-    database: DatabaseSettings = DatabaseSettings()
+    """
+    Application settings.
 
-    # Application Metadata
-    PROJECT_NAME: str = "OpenAI Batch Job Tracker"
+    Uses pydantic-settings to load from environment variables and .env files.
+    """
+    PROJECT_NAME: str = "OpenAI Batch Tracker"
     API_V1_STR: str = "/api/v1"
 
+    # OpenAI API Key
+    OPENAI_API_KEY: str
+    # # another way
     # OpenAI Configuration
     # Use SecretStr to prevent accidental exposure of the API key.
     # Mark as Optional for now, but required for features interacting with OpenAI API.
-    OPENAI_API_KEY: Optional[SecretStr] = Field(
-        default=None,
-        validation_alias="OPENAI_API_KEY",
-        description="Your OpenAI API key (required for status polling, file retrieval etc.)"
+    # OPENAI_API_KEY: Optional[SecretStr] = Field(
+    #     default=None,
+    #     validation_alias="OPENAI_API_KEY",
+    #     description="Your OpenAI API key (required for status polling, file retrieval etc.)"
+    #     )
+
+    # Database configuration
+    # # Refer the old version from main branch for the PostgresDsn validator and loading the DB config from .env
+    POSTGRES_SERVER: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_PORT: int = 5432
+    # # TODO: Add the DB validator to ensure the URL is valid
+    DATABASE_URL: Optional[str] = None
+
+    # Uvicorn server settings (if running directly, Docker Compose handles this)
+    SERVER_HOST: str = "0.0.0.0"
+    SERVER_PORT: int = 8000
+
+    # Logging configuration
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+    # Batch processing settings
+    OPENAI_BATCH_API_VERSION: str = "v1" # As per OpenAI docs for batch
+
+    # Model configuration for pydantic-settings
+    # This allows loading from a .env file (e.g., for local development)
+    # Ensure a .env file is present or environment variables are set.
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding='utf-8', extra='ignore')
+
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        """
+        Constructs the SQLAlchemy database URL from individual components.
+        If DATABASE_URL is set directly, it will be used.
+        """
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+        return (
+            f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
+            f"{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
-
-    # Logging Configuration
-    LOG_LEVEL: str = Field(default="INFO", validation_alias="LOG_LEVEL")
-    # Log file path (can be relative to the execution directory or absolute)
-    LOG_FILE_PATH: str = Field(default="logs/app.log", validation_alias="LOG_FILE_PATH")
-
-    # Validator for LOG_LEVEL
-    @field_validator('LOG_LEVEL')
-    @classmethod
-    def validate_log_level(cls, value: str) -> str:
-        """Validates and standardizes the log level."""
-        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-        level = value.upper()
-        if level not in valid_levels:
-            raise ValueError(f"Invalid LOG_LEVEL: '{value}'. Must be one of {valid_levels}")
-        return level
-
-    class Config:
-        # Makes BaseSettings case-insensitive for environment variables
-        case_sensitive = False
-        # Specifies the .env file name if you want to use a specific one
-        # env_file = ".env"
-        # Allow population by field name in addition to alias
-        populate_by_name = True
-
 
 @lru_cache() # Cache the settings object for performance
 def get_settings() -> Settings:
     """
     Returns the application settings instance.
-    Uses lru_cache to ensure settings are loaded only once.
+
+    The settings are cached using lru_cache to avoid reloading them multiple times.
     """
-    # This will raise a validation error during startup if required settings
-    # (like DATABASE_URL) are invalid or missing the database name part.
-    return Settings()
+    logger.info("Loading application settings...")
+    try:
+        settings = Settings()
+        # Log a portion of the loaded settings for verification (be careful with sensitive data)
+        logger.info(f"Settings loaded for project: {settings.PROJECT_NAME}")
+        logger.debug(f"Database URL constructed: {settings.sqlalchemy_database_url}") # For debugging
+        if not settings.OPENAI_API_KEY:
+            logger.error("OPENAI_API_KEY is not set in the environment variables or .env file.")
+            raise ValueError("OPENAI_API_KEY is required but not set.")
+        return settings
+    except Exception as e:
+        logger.exception(f"Error loading settings: {e}")
+        # Re-raise the exception if settings are critical for app startup
+        raise
 
-# Instantiate settings for easy import elsewhere
-settings = get_settings()
+# Initialize settings globally for easy access if needed, though dependency injection is preferred.
+# settings = get_settings() # Uncomment if global access is frequently needed, but prefer get_settings() via DI.
 
-
-# Example usage (optional, for testing):
-# if __name__ == "__main__":
-#     try:
-#         # Accessing settings here will trigger validation
-#         print(f"Project Name: {settings.PROJECT_NAME}")
-#         print(f"Database URL: {settings.database.URL}")
-#         print(f"Database Echo SQL: {settings.database.ECHO_SQL}")
-#         print(f"Log Level: {settings.LOG_LEVEL}")
-#         print(f"Log File Path (Config): {settings.LOG_FILE_PATH}")
-#         # Accessing the secret value requires .get_secret_value()
-#         if settings.OPENAI_API_KEY:
-#              print(f"OpenAI Key Loaded: Yes (Value hidden)")
-#              # print(f"Actual Key (DO NOT DO THIS IN REAL CODE): {settings.OPENAI_API_KEY.get_secret_value()}")
-#         else:
-#              print("OpenAI Key Loaded: No")
-#     except Exception as e:
-#         print(f"Error loading settings: {e}")
+if __name__ == "__main__":
+    # Example of how to use the settings
+    # This block will only run when the script is executed directly (e.g., python app/core/config.py)
+    try:
+        current_settings = get_settings()
+        print("Successfully loaded settings:")
+        print(f"  Project Name: {current_settings.PROJECT_NAME}")
+        print(f"  API V1 Prefix: {current_settings.API_V1_STR}")
+        print(f"  OpenAI API Key: {'*' * (len(current_settings.OPENAI_API_KEY) - 4) + current_settings.OPENAI_API_KEY[-4:] if current_settings.OPENAI_API_KEY else 'Not Set'}")
+        print(f"  Database URL: {current_settings.sqlalchemy_database_url}")
+        print(f"  Log Level: {current_settings.LOG_LEVEL}")
+    except ValueError as ve:
+        print(f"Configuration Error: {ve}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
