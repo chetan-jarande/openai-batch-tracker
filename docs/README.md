@@ -44,7 +44,7 @@ The entire application, including the database, is Dockerized for easy setup and
 │   │   ├── batch.py                    # Schemas for batch objects (Pydantic)
 │   │   └── common.py                   # Common/shared schemas (e.g., Msg, PaginatedResponse)
 │   ├── services/                       # Business logic/service layer (optional, for complex logic)
-│   │   ├── init.py
+│   │   ├── init.py                     # (currently made changes in respective api's present under app/api)
 │   │   ├── file_service.py             # Service functions for file operations
 │   │   └── batch_service.py            # Service functions for batch operations
 │   ├── templates/                      # Jinja2 templates for the dashboard
