@@ -20,7 +20,7 @@ from openai._exceptions import (
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
-from app.api.deps import DBSession, OpenAIClient
+from app.utils.deps import DBSession, OpenAIClientDep
 from app.db.models.file import File as DBFileModel
 from app.schemas import file as file_schema
 from app.schemas import common as common_schema
@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# --- Helper Functions (CRUD for DB) ---
 
+# --- Helper Functions (CRUD for DB) ---
 
 def get_db_file_by_openai_id(db: Session, openai_file_id: str) -> Optional[DBFileModel]:
     """
@@ -108,7 +108,7 @@ def create_db_file_record(
 def upload_file_to_openai(
     *,
     db: DBSession,
-    client: OpenAIClient,
+    client: OpenAIClientDep,
     file: UploadFile = FastApiFile(
         ...,
         description="The batch input file to upload (e.g., a .jsonl file)."
@@ -148,7 +148,11 @@ def upload_file_to_openai(
         # or a file-like object directly for the `file` parameter.
         # The `purpose` is hardcoded to "batch" as per requirements.
         uploaded_openai_file = client.files.create(
-            file=(file.filename, file.file, file.content_type),  # Pass as a tuple
+            file=(
+                file.filename,
+                file.file,
+                file.content_type
+            ),  # Pass as a tuple
             purpose="batch",
         )
         logger.info(
@@ -209,7 +213,7 @@ def upload_file_to_openai(
     description="Retrieves a list of files directly from the user's OpenAI account. Supports pagination.",
 )
 def list_files_from_openai(
-    client: OpenAIClient,
+    client: OpenAIClientDep,
     purpose: Annotated[
         Optional[str], Query(description="Only return files with the given purpose.")
     ] = None,
@@ -436,7 +440,7 @@ def retrieve_file_from_db(openai_file_id: str, db: DBSession) -> file_schema.Fil
 def delete_openai_file_and_record(
     openai_file_id: str,
     db: DBSession,
-    client: OpenAIClient
+    client: OpenAIClientDep,
 ) -> common_schema.Msg:
     """
     Deletes a file from both OpenAI and the local database.

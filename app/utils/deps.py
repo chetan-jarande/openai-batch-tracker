@@ -1,10 +1,9 @@
 import logging
 from typing import Generator, Annotated
-
-from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from openai import OpenAI, APIConnectionError, RateLimitError, APIStatusError
-
+from openai import OpenAI, AsyncOpenAI
+from fastapi import Depends
+from app.utils.init_helper import get_global_openai_client, get_openai_client
 from app.core.config import get_settings, Settings
 from app.db.session import SessionLocal
 
@@ -37,36 +36,12 @@ def get_app_settings() -> Settings:
 
 # Type alias for dependencies to improve readability in endpoint signatures
 DBSession = Annotated[Session, Depends(get_db)]
-CurrentSettings = Annotated[Settings, Depends(get_app_settings)]
-
-
-# Dependency to get OpenAI client
-def get_openai_client(settings: CurrentSettings) -> OpenAI:
-    """
-    Dependency that provides an initialized OpenAI client.
-    It uses the API key from the application settings.
-    """
-    if not settings.OPENAI_API_KEY:
-        logger.error("OPENAI_API_KEY is not configured.")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="OpenAI API key is not configured. Please set the OPENAI_API_KEY environment variable.",
-        )
-    try:
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        # You could add a simple test call here if needed, e.g., client.models.list()
-        # but it might slow down requests. Best to rely on OpenAI's exceptions.
-        logger.info("OpenAI client initialized successfully.")
-        return client
-    except Exception as e:
-        logger.exception(f"Failed to initialize OpenAI client: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not initialize OpenAI client: {str(e)}",
-        )
 
 # Type alias for OpenAI client dependency
+# Use this if you want to use cache method
 OpenAIClient = Annotated[OpenAI, Depends(get_openai_client)]
+# This is initialized in the app startup event
+OpenAIClientDep = Annotated[OpenAI, Depends(get_global_openai_client)]
 
 
 

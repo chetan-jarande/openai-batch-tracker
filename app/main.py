@@ -1,6 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, status, HTTPException # Added HTTPException
+from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware # Optional: For CORS
@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     logger.info("Application lifespan: Initiating startup sequence...")
     try:
         # Run all startup tasks
-        run_startup_logic() # Assuming it might become async in the future
+        run_startup_logic()
         logger.info("Application lifespan: Startup sequence completed successfully.")
         # This is where the application will run until shutdown.
         # The application runs while the lifespan context manager is active
@@ -94,6 +94,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 app.include_router(api_router_v1, prefix=settings.API_V1_STR)
 logger.info(f"Included API v1 router with global prefix: '{settings.API_V1_STR}'.")
 
+
 # --- Root Endpoint ---
 @app.get("/", tags=["Root"])
 async def read_root():
@@ -108,11 +109,11 @@ async def read_root():
 
 @app.get(
     "/status",
-    description="Endpoint for checking if service is working or not",
+    description="Endpoint for Service Availability",
     tags=["health-check"],
 )
-async def status_check():
-    return {"message": "Service is running in the background."}
+def status_check():
+    return JSONResponse(content={"status": "ok"}, status_code=status.HTTP_200_OK)
 
 
 
