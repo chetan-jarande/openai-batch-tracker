@@ -18,7 +18,7 @@ except Exception as e:
     logger.error(f"Critical error during logging setup: {e}", exc_info=True)
 
 
-# --- Lifespan Context Manager ---
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -36,32 +36,24 @@ async def lifespan(app: FastAPI):
         yield
 
     except Exception as e:
-        # This catch block is for errors during the startup phase itself.
         logger.exception(f"Application lifespan: CRITICAL error during startup: {e}")
-        # Depending on the error, you might want to re-raise or gracefully degrade.
-        # For example, if a critical service like the database fails to initialize,
-        # the application might not be able to serve requests.
-        # The example provided uses HTTPException, which might be suitable if this
-        # error needs to be communicated back during an initial health check,
-        # but lifespan errors don't directly translate to HTTP responses for all requests.
-        # Consider if `raise SystemExit` or similar is more appropriate for fatal startup errors.
-        # For now, we log and re-raise to ensure the app doesn't start in a broken state.
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Application failed to initialize critical services: {str(e)}"
-        ) from e # Preserve original exception context
+        ) from e
     finally:
         # This block executes regardless of whether an exception occurred in the try block or during app execution.
         logger.info("Application lifespan: Initiating shutdown sequence...")
         run_shutdown_logic()
         logger.info("Application lifespan: Shutdown sequence completed.")
 
+
 # --- FastAPI Application Instance ---
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    docs_url=f"{settings.API_V1_STR}/docs",
-    redoc_url=f"{settings.API_V1_STR}/redoc",
+    # docs_url=f"{settings.API_V1_STR}/docs",
+    # redoc_url=f"{settings.API_V1_STR}/redoc",
     version="0.1.0",
     description="API for tracking OpenAI Batch API jobs and managing associated files.",
     lifespan=lifespan
@@ -82,6 +74,7 @@ app = FastAPI(
 # )
 # logger.info(f"CORS middleware configured for origins: {origins}")
 
+
 # --- Custom Exception Handlers ---
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -95,6 +88,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": "Validation Error", "errors": error_messages},
     )
+
 
 # --- API Routers ---
 app.include_router(api_router_v1, prefix=settings.API_V1_STR)
@@ -110,6 +104,17 @@ async def read_root():
         "documentation_v1": f"{settings.API_V1_STR}/docs",
         "project_version": app.version
     }
+
+
+@app.get(
+    "/status",
+    description="Endpoint for checking if service is working or not",
+    tags=["health-check"],
+)
+async def status_check():
+    return {"message": "Service is running in the background."}
+
+
 
 # --- Main execution (for Uvicorn) ---
 if __name__ == "__main__":
