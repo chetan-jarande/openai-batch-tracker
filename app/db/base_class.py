@@ -1,7 +1,9 @@
+import re
 from typing import Any
 
 from sqlalchemy.ext.declarative import as_declarative, declared_attr
 from sqlalchemy import Column, DateTime, func
+
 
 class_registry: dict = {}
 
@@ -24,7 +26,6 @@ class Base:
         Converts CamelCase class names to snake_case table names.
         Example: UserProfile -> user_profile
         """
-        import re
         # Convert CamelCase to snake_case
         name = re.sub(r'(?<!^)(?=[A-Z])', '_', cls.__name__).lower()
         return name

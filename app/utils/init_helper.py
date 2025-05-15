@@ -3,11 +3,16 @@ import os
 from typing import Optional
 from functools import lru_cache
 from openai import OpenAI, AsyncOpenAI
+from sqlalchemy import Engine
 from fastapi import HTTPException, status
 from app.core.logging_config import setup_logging
 from app.db.base_class import Base
-from app.db.session import engine
 from app.core.config import get_settings, Settings
+from app.db.session import (
+    initialize_db_engine_and_sessionmaker,
+    create_db_tables,
+    close_db_engine,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +25,21 @@ def initialize_database():
     This is typically for development; production should use migrations.
     """
     logger.info("Attempting to initialize database (create tables)...")
+    db_engine_instance: Optional[Engine] = None
     try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables checked/created successfully.")
+        logger.info("Executing Database startup logic: Initializing DB engine...")
+        db_engine_instance = initialize_db_engine_and_sessionmaker()
+
+        if db_engine_instance:
+            logger.info("DB engine initialized. Creating tables...")
+            create_db_tables(db_engine_instance) # Tables are created using the engine
+        else:
+            logger.error("DB engine failed to initialize. Cannot create tables.")
+
+        logger.info("All database tasks completed.")
     except Exception as e:
-        logger.error(f"Error creating database tables: {e}", exc_info=True)
-        # Depending on the application, this might be a critical error.
-        # Consider re-raising or handling as appropriate for your application's needs.
-        raise e  # Re-raise to allow lifespan manager to catch and handle
+        logger.error(f"Error in initializing database: {e}", exc_info=True)
+        raise e
 
 
 def cleanup_database_resources():
@@ -36,14 +48,7 @@ def cleanup_database_resources():
     This ensures connections are gracefully closed on application shutdown.
     """
     logger.info("Performing database resource cleanup (disposing engine)...")
-    if engine:
-        try:
-            engine.dispose()
-            logger.info("SQLAlchemy engine's connection pool disposed successfully.")
-        except Exception as e:
-            logger.error(f"Error disposing SQLAlchemy engine: {e}", exc_info=True)
-    else:
-        logger.warning("SQLAlchemy engine not available for disposal.")
+    close_db_engine()
     logger.info("Database resource cleanup finished.")
 
 

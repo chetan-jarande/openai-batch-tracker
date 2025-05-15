@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware # Optional: For CORS
 from app.core.config import get_settings, Settings
 from app.api.api_v1 import api_router_v1
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
+from app.db.session import check_db_connection
 
 
 try:
@@ -107,14 +108,34 @@ async def read_root():
     }
 
 
+# --- Health Check Endpoint ---
 @app.get(
     "/status",
-    description="Endpoint for Service Availability",
-    tags=["health-check"],
+    description="Endpoint for Service Availability, including database connectivity.",
+    tags=["Health Check"],
 )
-def status_check():
-    return JSONResponse(content={"status": "ok"}, status_code=status.HTTP_200_OK)
+def service_status_check():
+    """
+    Provides the operational status of the service, including its
+    ability to connect to the database.
+    """
+    logger.info("Health check endpoint '/status' accessed.")
 
+    db_status_ok = check_db_connection()
+
+    response_content = {
+        "service_status": "ok",
+        "database_status": "ok" if db_status_ok else "error"
+    }
+
+    # Determine overall HTTP status code based on dependencies
+    # If DB is critical, the service might be considered unhealthy if DB is down.
+    http_status_code = status.HTTP_200_OK if db_status_ok else status.HTTP_503_SERVICE_UNAVAILABLE
+
+    if not db_status_ok:
+        logger.warning("Database connectivity check failed during health check.")
+
+    return JSONResponse(content=response_content, status_code=http_status_code)
 
 
 # --- Main execution (for Uvicorn) ---
