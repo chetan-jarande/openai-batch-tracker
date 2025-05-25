@@ -1,92 +1,151 @@
 import logging
-from fastapi import FastAPI, Request, status
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware # If needed for frontend interaction
-from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware # Optional: For CORS
+from app.core.config import get_settings, Settings
+from app.api.api_v1 import api_router_v1
+from app.utils.init_helper import run_startup_logic, run_shutdown_logic
+from app.db.session import check_db_connection
 
-from core.config import settings
-from core.logging_config import setup_logging
-from db.session import init_db # Import the DB initializer
-from routers import batches # Import the batches router
-from openai import OpenAI
 
-# Setup logging as early as possible
-setup_logging()
-logger = logging.getLogger(__name__)
+try:
+    logger = logging.getLogger(__name__)
+    settings: Settings = get_settings()
+except Exception as e:
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    logger.error(f"Critical error during logging setup: {e}", exc_info=True)
+
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Context manager for application lifespan events.
-
-    Handles startup and shutdown logic, such as initializing the database.
+    Manages application startup and shutdown events using helper functions.
+    - Initializes resources on startup (before yield).
+    - Cleans up resources on shutdown (after yield).
     """
-    logger.info("Application startup sequence initiated...")
-    # --- Startup ---
+    logger.info("Application lifespan: Initiating startup sequence...")
     try:
-        logger.info("Initializing database...")
-        init_db() # Create database tables if they don't exist
-        logger.info("Database initialization complete.")
+        # Run all startup tasks
+        run_startup_logic()
+        logger.info("Application lifespan: Startup sequence completed successfully.")
+        # This is where the application will run until shutdown.
+        # The application runs while the lifespan context manager is active
+        yield
+
     except Exception as e:
-        logger.critical(f"Failed to initialize database during startup: {e}", exc_info=True)
-        # Depending on the severity, you might want to prevent the app from starting fully
-        # For now, we log critical and continue, but the app might not function correctly.
-        pass # Or raise an exception to stop startup
+        logger.exception(f"Application lifespan: CRITICAL error during startup: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Application failed to initialize critical services: {str(e)}"
+        ) from e
+    finally:
+        # This block executes regardless of whether an exception occurred in the try block or during app execution.
+        logger.info("Application lifespan: Initiating shutdown sequence...")
+        run_shutdown_logic()
+        logger.info("Application lifespan: Shutdown sequence completed.")
 
-    logger.info("Application startup complete.")
-    yield # Application runs after this point
-    # --- Shutdown ---
-    logger.info("Application shutdown sequence initiated...")
-    # Add any cleanup logic here (e.g., closing connections if not handled by context managers)
-    logger.info("Application shutdown complete.")
 
-
-# Initialize FastAPI app with lifespan context manager
+# --- FastAPI Application Instance ---
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json", # Customize OpenAPI schema URL
-    version="0.1.0", # Set your app version
-    lifespan=lifespan # Use the lifespan manager for startup/shutdown
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    # docs_url=f"{settings.API_V1_STR}/docs",
+    # redoc_url=f"{settings.API_V1_STR}/redoc",
+    version="0.1.0",
+    description="API for tracking OpenAI Batch API jobs and managing associated files.",
+    lifespan=lifespan
 )
 
 # --- Middleware ---
-# Add CORS middleware if your dashboard/frontend is served from a different origin
+# Example: CORS (Cross-Origin Resource Sharing)
+# origins = [
+#     "http://localhost",
+#     "http://localhost:3000",
+# ]
 # app.add_middleware(
 #     CORSMiddleware,
-#     allow_origins=["*"], # Or specify allowed origins: ["http://localhost:3000"]
+#     allow_origins=origins,
 #     allow_credentials=True,
-#     allow_methods=["*"], # Or restrict methods: ["GET", "POST"]
-#     allow_headers=["*"], # Or specify allowed headers
+#     allow_methods=["*"],
+#     allow_headers=["*"],
 # )
+# logger.info(f"CORS middleware configured for origins: {origins}")
 
-# --- Routers ---
-# Include the router for batch endpoints, prefixing them
-app.include_router(batches.router, prefix="/batches", tags=["Batch API", "Dashboard"])
-# Note: The dashboard route is defined within batches.router but accessed via /batches/dashboard
-
-# --- Root Endpoint ---
-@app.get("/", summary="Root Endpoint", tags=["General"])
-async def read_root():
-    """Provides a simple welcome message."""
-    logger.info("Root endpoint accessed.")
-    return {"message": f"Welcome to the {settings.PROJECT_NAME}!"}
 
 # --- Custom Exception Handlers ---
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Handles Pydantic validation errors for clearer client feedback."""
-    logger.warning(f"Request validation error: {exc.errors()}", exc_info=False) # Log details without full stack trace for validation errors
+    error_messages = []
+    for error in exc.errors():
+        field = " -> ".join(str(loc) for loc in error["loc"])
+        message = error["msg"]
+        error_messages.append({ "field": field, "message": message, "type": error["type"]})
+    logger.warning(f"Request validation error: {exc.errors()} for request: {request.method} {request.url}")
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": exc.errors(), "body": exc.body},
+        content={"detail": "Validation Error", "errors": error_messages},
     )
 
-# Add more custom exception handlers if needed (e.g., for specific database errors)
 
-# --- Run Instructions (for local development without Docker) ---
-# If you run this file directly (e.g., `python app/main.py`),
-# it won't start the server correctly with Uvicorn's features like hot-reloading.
-# Use: `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
-# The Dockerfile will handle running Uvicorn correctly in the container.
+# --- API Routers ---
+app.include_router(api_router_v1, prefix=settings.API_V1_STR)
+logger.info(f"Included API v1 router with global prefix: '{settings.API_V1_STR}'.")
+
+
+# --- Root Endpoint ---
+@app.get("/", tags=["Root"])
+async def read_root():
+    logger.info("Root endpoint '/' accessed.")
+    return {
+        "message": f"Welcome to {settings.PROJECT_NAME}",
+        "status": "API is running",
+        "documentation_v1": f"{settings.API_V1_STR}/docs",
+        "project_version": app.version
+    }
+
+
+# --- Health Check Endpoint ---
+@app.get(
+    "/status",
+    description="Endpoint for Service Availability, including database connectivity.",
+    tags=["Health Check"],
+)
+def service_status_check():
+    """
+    Provides the operational status of the service, including its
+    ability to connect to the database.
+    """
+    logger.info("Health check endpoint '/status' accessed.")
+
+    db_status_ok = check_db_connection()
+
+    response_content = {
+        "service_status": "ok",
+        "database_status": "ok" if db_status_ok else "error"
+    }
+
+    # Determine overall HTTP status code based on dependencies
+    # If DB is critical, the service might be considered unhealthy if DB is down.
+    http_status_code = status.HTTP_200_OK if db_status_ok else status.HTTP_503_SERVICE_UNAVAILABLE
+
+    if not db_status_ok:
+        logger.warning("Database connectivity check failed during health check.")
+
+    return JSONResponse(content=response_content, status_code=http_status_code)
+
+
+# --- Main execution (for Uvicorn) ---
+if __name__ == "__main__":
+    import uvicorn
+    logger.info("Starting application directly using Uvicorn (for development/debugging)...")
+    uvicorn.run(
+        "app.main:app",
+        host=settings.SERVER_HOST,
+        port=settings.SERVER_PORT,
+        log_level=settings.LOG_LEVEL.lower(),
+        reload=True
+    )

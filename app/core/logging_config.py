@@ -1,130 +1,82 @@
 import logging
-import logging.handlers # Import handlers
-from pathlib import Path
-import os
 import sys
 
-# Import settings and the RequestIdFilter
-from .config import settings
-# Assuming RequestIdFilter is defined in middleware.py
-from .middleware import RequestIdFilter
+from app.core.config import get_settings
 
-# Flag to prevent setup from running multiple times in some scenarios (like Uvicorn reload)
-_logging_configured = False
-
-def setup_logging():
+def setup_logging() -> None:
     """
-    Configures logging for the application programmatically using Text format.
+    Configures the application's logging.
 
-    Sets up console and rotating file handlers based on settings if not already configured.
-    Includes RequestIdFilter for correlating logs.
-    Lets library loggers inherit from the root logger by default.
+    Uses settings from the application configuration (e.g., LOG_LEVEL, LOG_FORMAT).
+    This setup ensures consistent logging throughout the application.
     """
-    global _logging_configured
-    if _logging_configured:
-        return # Avoid reconfiguring if already done
+    settings = get_settings()
+
+    # Get the root logger
+    root_logger = logging.getLogger()
+
+    # Set the overall logging level for the root logger
+    # This acts as a filter; handlers can have their own levels but not higher than this.
+    try:
+        log_level_int = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+        root_logger.setLevel(log_level_int)
+    except AttributeError:
+        root_logger.setLevel(logging.INFO)
+        logging.warning(f"Invalid LOG_LEVEL '{settings.LOG_LEVEL}'. Defaulting to INFO.")
+
+    # Remove any existing handlers to avoid duplicate logs if this function is called multiple times
+    # or if other libraries (like Uvicorn) have already configured the root logger.
+    if root_logger.hasHandlers():
+        for handler in root_logger.handlers[:]: # Iterate over a copy
+            root_logger.removeHandler(handler)
+            handler.close() # Close the handler to release resources
+
+    # Create a stream handler to output logs to stdout (or stderr)
+    stream_handler = logging.StreamHandler(sys.stdout) # Or sys.stderr for errors
+
+    # Set the logging level for this specific handler
+    stream_handler.setLevel(log_level_int)
+
+    # Create a formatter and set it for the handler
+    formatter = logging.Formatter(settings.LOG_FORMAT)
+    stream_handler.setFormatter(formatter)
+
+    # Add the handler to the root logger
+    root_logger.addHandler(stream_handler)
+
+    # Configure logging for specific libraries if needed (e.g., reduce verbosity)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING) # Quieten Uvicorn access logs if too noisy
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO) # Or WARNING to reduce SQLAlchemy engine logs
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"Logging configured with level: {settings.LOG_LEVEL}, format: '{settings.LOG_FORMAT}'")
+
+if __name__ == "__main__":
+    # This block allows testing the logging configuration independently.
+    # To run: python -m app.core.logging_config
+    # (Ensure .env is set up or environment variables are available for get_settings())
+
+    # First, call setup_logging to apply our configuration
+    setup_logging()
+    # # TODO:
+    # Add the file roatation handler to log to a file
+        # File should be rotated daily and keep 7 days of logs
+    # set log format: text_format = "%(asctime)s [%(levelname)-8s] %(name)s:%(lineno)d (%(request_id)s) - %(message)s"
+
+    # Get a logger instance for this test module
+    test_logger = logging.getLogger("test_logging_config")
+
+    # Log messages at different levels to verify
+    test_logger.debug("This is a debug message (should not appear if LOG_LEVEL is INFO or higher).")
+    test_logger.info("This is an info message.")
+    test_logger.warning("This is a warning message.")
+    test_logger.error("This is an error message.")
+    test_logger.critical("This is a critical message.")
 
     try:
-        # --- Determine Log Level ---
-        log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+        1 / 0
+    except ZeroDivisionError:
+        test_logger.exception("An exception occurred (exception info will be logged).")
 
-        # --- Ensure Log Directory Exists ---
-        log_file_path_str = settings.LOG_FILE_PATH
-        log_file_path = Path(log_file_path_str)
-        log_dir = log_file_path.parent
-        log_dir.mkdir(parents=True, exist_ok=True)
-        # Initial message before full setup - use print as logging might not be ready
-        print(f"[INFO] Ensured log directory exists: {log_dir.resolve()}")
+    print("Logging test complete. Check the console output.")
 
-        # --- Create Filter ---
-        # This filter adds the 'request_id' attribute to log records
-        request_id_filter = RequestIdFilter()
-
-        # --- Create Text Formatter (with request_id) ---
-        # This format string expects 'request_id' to be present on the log record
-        text_format = "%(asctime)s [%(levelname)-8s] %(name)s:%(lineno)d (%(request_id)s) - %(message)s"
-        text_date_format = "%Y-%m-%d %H:%M:%S"
-        text_formatter = logging.Formatter(text_format, datefmt=text_date_format)
-
-        # --- Configure Root Logger ---
-        # Get the root logger instance
-        root_logger = logging.getLogger()
-        # Set the effective level for the root logger
-        root_logger.setLevel(log_level)
-
-        # --- Configure Console Handler ---
-        # Check if a similar handler already exists to avoid duplicates
-        if not any(isinstance(h, logging.StreamHandler) and h.stream == sys.stdout for h in root_logger.handlers):
-            console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setFormatter(text_formatter) # Use our text formatter
-            console_handler.addFilter(request_id_filter) # Add filter to make request_id available
-            console_handler.setLevel(log_level) # Set level for this handler
-            root_logger.addHandler(console_handler)
-            print("[INFO] Console logging handler configured.") # Use print before logging is fully set
-
-        # --- Configure Timed Rotating File Handler ---
-        # Check if a similar handler already exists
-        # Note: This check might be less reliable if path normalization differs
-        if not any(isinstance(h, logging.handlers.TimedRotatingFileHandler) and h.baseFilename == str(log_file_path.resolve()) for h in root_logger.handlers):
-            file_handler = logging.handlers.TimedRotatingFileHandler(
-                filename=log_file_path, # Use path object or string
-                when="D",         # Rotate daily
-                interval=1,       # Interval based on 'when' (1 day)
-                backupCount=7,    # Keep 7 old log files
-                encoding='utf-8',
-                delay=False
-            )
-            file_handler.setFormatter(text_formatter) # Use our text formatter
-            file_handler.addFilter(request_id_filter) # Add filter to make request_id available
-            file_handler.setLevel(log_level) # Set level for this handler
-            root_logger.addHandler(file_handler)
-            print(f"[INFO] File logging handler configured for {log_file_path.resolve()}.") # Use print
-
-        # --- Library Logger Behavior ---
-        # Explicitly configure uvicorn loggers to use our handlers and prevent propagation
-        # This ensures consistent formatting and avoids duplicates from uvicorn's defaults.
-        # logging.getLogger("uvicorn").propagate = False
-        # logging.getLogger("uvicorn.error").propagate = False
-        # logging.getLogger("uvicorn.access").propagate = False
-        # for logger_name in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
-        #      lib_logger = logging.getLogger(logger_name)
-        #      # Ensure handlers are not duplicated if setup_logging is called multiple times
-        #      if not lib_logger.hasHandlers():
-        #          lib_logger.setLevel(logging.INFO) # Adjust level as needed
-        #          lib_logger.addHandler(console_handler)
-        #          lib_logger.addHandler(file_handler)
-
-        # --- SQLAlchemy Logger Configuration (Recommendation - Commented Out) ---
-        # By default, 'sqlalchemy' logger inherits root settings.
-        # For finer control (e.g., quieter logs, prevent duplicates), uncomment:
-        #
-        # logging.getLogger("sqlalchemy").propagate = False # Prevent passing to root
-        # sqlalchemy_logger = logging.getLogger("sqlalchemy")
-        # sqlalchemy_logger.setLevel(logging.WARNING) # Example: Set level to WARNING
-        # # Add handlers only if they haven't been added before (e.g., by reload)
-        # if not sqlalchemy_logger.hasHandlers():
-        #      sqlalchemy_logger.addHandler(console_handler)
-        #      sqlalchemy_logger.addHandler(file_handler)
-        #
-
-        # Use the configured logger for subsequent messages
-        logger = logging.getLogger(__name__) # Get logger for this module
-        logger.info("Logging configured successfully using simplified programmatic setup.")
-        logger.info(f"Root logger level set to: {settings.LOG_LEVEL}")
-        logger.info(f"Using log file path: {log_file_path_str} (Resolved: {log_file_path.resolve()})")
-
-        _logging_configured = True # Mark logging as configured
-
-    except Exception as e:
-        # Fallback basic config if setup fails
-        logging.basicConfig(level=logging.WARNING, force=True) # force=True overrides existing
-        logging.critical(f"CRITICAL ERROR: Failed to configure logging programmatically: {e}", exc_info=True)
-        logging.warning("Falling back to basic logging configuration.")
-
-# Example usage (optional, for testing):
-# if __name__ == "__main__":
-#     # Must be run after settings are initialized
-#     setup_logging()
-#     test_logger = logging.getLogger("my_test_module")
-#     test_logger.info("This is an info message.")
-#     test_logger.warning("This is a warning message.")
