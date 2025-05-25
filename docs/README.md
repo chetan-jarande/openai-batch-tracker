@@ -176,3 +176,33 @@ Currently, SQLAlchemy models define the schema, and tables are created on applic
 The openai library requires the OPENAI_API_KEY environment variable.
 The psycopg2-binary driver is used for PostgreSQL.
 For live code reloading during development with Docker, ensure Uvicorn is run with --reload (the CMD in Dockerfile can be adjusted, or run python app/main.py inside the container if it includes Uvicorn reload logic). The volume mount ./app:/app/app in docker-compose.yml facilitates this.
+
+---
+
+## Start the server locally without docker
+
+- install pyenv
+```
+git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n eval "$(pyenv init -)"\nfi' >> ~/.bashrc
+exec "$SHELL"
+```
+- install the respective python version that you want to use
+```
+~/.pyenv/bin/pyenv install 3.11.0
+```
+- create venv using that newly installed python
+```
+~/.pyenv/versions/3.11.0/bin/python -m venv venv
+```
+- Activate the venv
+```
+source venv/bin/activate
+```
+- install the required dependencies
+```
+pip install -r requirements.txt
+```
+---

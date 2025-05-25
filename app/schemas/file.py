@@ -1,7 +1,11 @@
 import logging
+from enum import Enum
 from datetime import datetime
 from typing import Optional, List, Literal
-
+from openai.types import (
+    FileListParams,
+    FileObject as OpenAIFileObject,
+)
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.schemas.common import PaginatedResponse  # For paginated list response
@@ -10,36 +14,39 @@ logger = logging.getLogger(__name__)
 
 
 # --- Schemas for OpenAI File Object (for responses) ---
-class OpenAIFileObjectSchema(BaseModel):
+class OpenAIFileObjectSchema(OpenAIFileObject):
     """
     Pydantic schema representing an OpenAI File object, as returned by their API.
     Based on: https://platform.openai.com/docs/api-reference/files/object
     """
+    # Parent should suffice the OpenAI FileObject requirements here
+    # this class is created to add more thing on top of what is there already under OpenAI's FileObject class
+    pass
 
-    id: str = Field(
-        description="The file identifier, which can be referenced in other API endpoints."
-    )
-    bytes: int = Field(description="The size of the file, in bytes.")
-    created_at: int = Field(
-        description="The Unix timestamp (in seconds) for when the file was created."
-    )
-    filename: str = Field(description="The name of the file.")
-    object: Literal["file"] = Field(
-        description="The object type, which is always 'file'."
-    )
-    purpose: str = Field(
-        description="The intended purpose of the file. Supported values are 'fine-tune', 'fine-tune-results', 'assistants', and 'assistants_output'."
-    )
-    status: Optional[str] = Field(
-        None,
-        description="Deprecated. The current status of the file, which can be 'uploaded', 'processed', 'error'.",
-    )
-    status_details: Optional[str] = Field(
-        None,
-        description="Deprecated. For details on why a fine-tune training file failed processing, see the `error` field on the fine-tune object.",
-    )
+    # id: str = Field(
+    #     description="The file identifier, which can be referenced in other API endpoints."
+    # )
+    # bytes: int = Field(description="The size of the file, in bytes.")
+    # created_at: int = Field(
+    #     description="The Unix timestamp (in seconds) for when the file was created."
+    # )
+    # filename: str = Field(description="The name of the file.")
+    # object: Literal["file"] = Field(
+    #     description="The object type, which is always 'file'."
+    # )
+    # purpose: str = Field(
+    #     description="The intended purpose of the file. Supported values are 'fine-tune', 'fine-tune-results', 'assistants', and 'assistants_output'."
+    # )
+    # status: Optional[str] = Field(
+    #     None,
+    #     description="Deprecated. The current status of the file, which can be 'uploaded', 'processed', 'error'.",
+    # )
+    # status_details: Optional[str] = Field(
+    #     None,
+    #     description="Deprecated. For details on why a fine-tune training file failed processing, see the `error` field on the fine-tune object.",
+    # )
 
-    model_config = ConfigDict(from_attributes=True)
+    # model_config = ConfigDict(from_attributes=True)
 
 
 # --- Base Schemas for our internal representation ---
@@ -128,7 +135,7 @@ class OpenAIFileListRequestParams(BaseModel):
     Pydantic model for query parameters when listing files from OpenAI.
     Based on: https://platform.openai.com/docs/api-reference/files/list
     """
-
+    # TODO: Check if we can leverage OpenAI's FileListParams directly here by inheriting this class from it.
     purpose: Optional[str] = Field(
         None, description="Only return files with the given purpose."
     )
@@ -213,6 +220,42 @@ class FileUpdate(BaseModel):
     status_details: Optional[str] = None
     openai_created_at: Optional[int] = None
     model_config = ConfigDict(extra="forbid") # Forbid extra fields during update
+
+
+
+# --- Enum for File Content Actions ---
+class FileContentAction(str, Enum):
+    """
+    Defines the possible actions to perform with the retrieved file content
+    when NOT downloading it as a file.
+    """
+    GET_JSON = "get_json"
+    GET_TEXT = "get_text"
+    GET_BYTES = "get_bytes"
+
+# --- Pydantic Model for File Content Request Parameters ---
+class FileContentRequestParams(BaseModel):
+    """
+    Parameters to control how file content retrieved from OpenAI is processed and returned.
+    """
+    action: FileContentAction = Field(
+        default=FileContentAction.GET_BYTES,
+        description=(
+            "Action to perform if `download_as` is not provided. "
+            "`get_json` attempts to parse and return content as JSON. "
+            "`get_text` returns content as a UTF-8 decoded string. "
+            "`get_bytes` returns the raw binary content in the response body."
+        )
+    )
+    download_as: Optional[str] = Field(
+        default=None,
+        description=(
+            "If provided, the file content will be streamed as a download with this filename. "
+            "The 'action' parameter is ignored when 'download_as' is specified."
+        )
+    )
+
+
 
 
 # --- Example Usage ---
