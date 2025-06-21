@@ -14,6 +14,8 @@ from app.db.models import BatchStatus # Import Enum for template context
 
 logger = logging.getLogger(__name__)
 
+# TODO: remove this as dashboard is now in the main app
+# This router handles batch-related endpoints, including the HTML dashboard and API endpoints
 # APIRouter for batch-related endpoints
 router = APIRouter()
 

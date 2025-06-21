@@ -1,8 +1,7 @@
 import logging
 from fastapi import APIRouter
 from app.api import files as files_api
-# TODO: Uncomment the following import when batches API is implemented
-# from app.api import batches as batches_api
+from app.api import batches as batches_api
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +24,12 @@ logger.info("Included Files API router into API v1 router with prefix '/files'."
 # Include the batches router
 # All routes from batches_api.router will be prefixed with /batches
 # e.g., /api/v1/batches/, /api/v1/batches/{openai_batch_id}
-# TODO: Uncomment and implement the batches API
-# api_router_v1.include_router(
-#     batches_api.router,
-#     prefix="/batches",
-#     tags=["Batches"],
-# )
-# logger.info("Included Batches API router into API v1 router with prefix '/batches'.")
+api_router_v1.include_router(
+    batches_api.router,
+    prefix="/batches",
+    tags=["Batches"],
+)
+logger.info("Included Batches API router into API v1 router with prefix '/batches'.")
 
 
 if __name__ == "__main__":

@@ -557,7 +557,7 @@ def retrieve_file_from_openai(
         #   - here we need to use the  pathlib.Path type of values as inputs
         # it also have other methods like:
         #    - json(), content(), text(), bytes(), etc
-        # create a datamodel to accept this pathline input, methods in which they need there data to be return back to client
+        # create a datamodel to accept this pathlike input, methods in which they need there data to be return back to client
         if not content:
             logger.warning(
                 f"The File with OpenAI File ID '{openai_file_id}' not found in OpenAI nor it has any content."

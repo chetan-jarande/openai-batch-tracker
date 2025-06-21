@@ -46,21 +46,6 @@ class PaginatedResponse(BaseModel, Generic[DataType]):
         description="List of items for the current page."
     )
 
-    # Example usage (not part of the class definition, just for illustration):
-    # class User(BaseModel):
-    #     id: int
-    #     name: str
-    #
-    # class PaginatedUserResponse(PaginatedResponse[User]):
-    #     pass
-    #
-    # response = PaginatedUserResponse(
-    #     count=100,
-    #     limit=10,
-    #     offset=0,
-    #     items=[User(id=1, name="Alice")]
-    # )
-
 
 if __name__ == "__main__":
     # Example of how to use these common schemas
