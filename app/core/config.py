@@ -93,7 +93,7 @@ def get_settings() -> Settings:
         raise
 
 # Initialize settings globally for easy access if needed, though dependency injection is preferred.
-# settings = get_settings() # Uncomment if global access is frequently needed, but prefer get_settings() via DI.
+settings = get_settings() # Uncomment if global access is frequently needed, but prefer get_settings() via DI.
 
 if __name__ == "__main__":
     # Example of how to use the settings

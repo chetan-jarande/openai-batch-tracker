@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # === Create Operations ===
 
-def create_batch(db: Session, batch: batch_schemas.BatchCreate) -> models.BatchRequest:
+def create_batch(db: Session, batch: batch_schemas.OpenAIBatchCreate) -> models.BatchRequest:
     """
     Creates a new batch request record in the database.
 

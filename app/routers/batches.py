@@ -8,9 +8,9 @@ from datetime import datetime, timezone # Import datetime for timestamp conversi
 
 from app.db.session import get_db # Dependency to get DB session
 from app.schemas import batch as batch_schemas # Pydantic schemas
-from app.crud import batch as batch_crud # CRUD operations
+from app.db.crud import batch as batch_crud # CRUD operations
 from app.core.config import settings # For API prefix
-from app.db.models import BatchStatus # Import Enum for template context
+from app.db.models.models import BatchStatus # Import Enum for template context
 
 logger = logging.getLogger(__name__)
 
@@ -90,13 +90,13 @@ async def read_dashboard(request: Request, db: Session = Depends(get_db)):
     tags=["Batch API"]
 )
 def create_batch_endpoint(
-    batch_in: batch_schemas.BatchCreate, # Uses the updated BatchCreate schema
+    batch_in: batch_schemas.OpenAIBatchCreate, # Uses the updated OpenAIBatchCreate schema
     db: Session = Depends(get_db)
 ):
     """
     Registers a new OpenAI batch job in the tracking system.
 
-    Expects data conforming to the `BatchCreate` schema.
+    Expects data conforming to the `OpenAIBatchCreate` schema.
     Checks if a batch with the same OpenAI ID already exists.
     """
     logger.info(f"Received request to create batch record for OpenAI ID: {batch_in.openai_batch_id}")

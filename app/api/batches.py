@@ -40,7 +40,7 @@ router = APIRouter()
     tags=["Batches", "OpenAI"],
 )
 def create_batch(
-    batch: batch_schema.BatchCreate,
+    batch: batch_schema.OpenAIBatchCreate,
     openai_client: OpenAIClientDep,
 ) -> batch_schema.OpenAIBatchResponse:
     """
