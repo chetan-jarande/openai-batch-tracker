@@ -144,7 +144,7 @@ class OpenAIBatchCreate(BaseModel):
     metadata: dict[str, str] | None = Field(
         None, description="Optional metadata map (max 16 key-value pairs)"
     )
-
+    # TODO:  Use the config dict methods here
     class Config:
         schema_extra = {
             "example": {
@@ -336,6 +336,7 @@ class BatchUpdateInDB(BaseModel):
 # --- Schema for Reading/Returning Batch Data ---
 # Includes internal DB fields along with OpenAI fields
 # TODO: remove this if not in used for primary functions
+# This will be removed as the DB utils will be removed
 class Batch(BatchBase):
     """Schema used for returning BatchRequest data from the API, including internal DB fields."""
 
