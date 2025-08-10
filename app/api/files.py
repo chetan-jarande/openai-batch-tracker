@@ -229,7 +229,7 @@ def list_files_from_openai(
         )
 
 
-# TODO: create a pydantic model for the OpenAI FileObject
+# TODO: Remove the DB model layer
 @router.get(
     "/",
     response_model=file_schema.PaginatedFilePublicResponse,
@@ -360,7 +360,7 @@ def retrieve_file_from_openai(
             detail=f"Could not retrieve file {openai_file_id} from the OpenAI.",
         )
 
-
+# TODO: remove the DB model layer
 @router.get(
     "/{openai_file_id}",
     response_model=file_schema.FilePublic,
@@ -482,7 +482,7 @@ def delete_openai_file_and_record(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred while deleting the file from OpenAI: {str(e)}",
         )
-
+    # TODO: Remove the DB model layer
     # Step 2: Delete from local database
     db_file = get_db_file_by_openai_id(db, openai_file_id)
     if not db_file:
@@ -520,6 +520,7 @@ def delete_openai_file_and_record(
 
 
 # Retrieve file content
+# # Doc from Batches -> https://platform.openai.com/docs/guides/batch#5-retrieve-the-results 
 # TODO: Replace this API with v2 API versions
 @router.get(
     "content/v1/{openai_file_id}",
@@ -529,7 +530,7 @@ def delete_openai_file_and_record(
     description="Retrieves details of a specific file from OpenAI using its OpenAI File ID.",
     tags=["Files", "OpenAI"],
 )
-def retrieve_file_from_openai(
+def retrieve_file_content_from_openai_v1(
     openai_file_id: str,
     client: OpenAIClientDep,
 ) -> HttpxBinaryResponseContent:
@@ -587,7 +588,7 @@ def retrieve_file_from_openai(
                 "Otherwise, returns content based on 'action' (JSON, text, bytes).",
     tags=["Files", "OpenAI"],
 )
-async def retrieve_file_content_from_openai(
+async def retrieve_file_content_from_openai_v2(
     openai_file_id: str,
     client: OpenAIClientDep,
     params: file_schema.FileContentRequestParams = Depends(),

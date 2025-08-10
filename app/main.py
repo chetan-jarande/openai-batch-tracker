@@ -5,7 +5,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware # Optional: For CORS
 from app.core.config import get_settings, Settings
-from app.api.api_v1 import api_router_v1
+from app.api import files as files_api
+from app.api import batches as batches_api
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
 from app.db.session import check_db_connection
 
@@ -52,7 +53,7 @@ async def lifespan(app: FastAPI):
 # --- FastAPI Application Instance ---
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    # openapi_url=f"{settings.API_V1_STR}/openapi.json",
     # docs_url=f"{settings.API_V1_STR}/docs",
     # redoc_url=f"{settings.API_V1_STR}/redoc",
     version="0.1.0",
@@ -92,8 +93,29 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 # --- API Routers ---
-app.include_router(api_router_v1, prefix=settings.API_V1_STR)
-logger.info(f"Included API v1 router with global prefix: '{settings.API_V1_STR}'.")
+
+# Include the files router
+# All routes from files_api.router will be prefixed with /files
+# e.g., /api/v1/files/upload, /api/v1/files/
+app.include_router(
+    files_api.router,
+    prefix="/files",
+    tags=["Files"],
+    # dependencies=[Depends(get_current_active_user)] # Example: Add common dependencies for this group
+)
+logger.info("Included Files API router into API v1 router with prefix '/files'.")
+
+# Include the batches router
+# All routes from batches_api.router will be prefixed with /batches
+# e.g., /api/v1/batches/, /api/v1/batches/{openai_batch_id}
+app.include_router(
+    batches_api.router,
+    prefix="/batches",
+    tags=["Batches"],
+)
+logger.info("Included Batches API router into API v1 router with prefix '/batches'.")
+
+
 
 
 # --- Root Endpoint ---

@@ -90,7 +90,7 @@ def create_batch(
 @router.get(
     "/{batch_id}",
     response_model=batch_schema.OpenAIBatchResponse,
-    summary="Retrieve OpenAI Batch",
+    summary="Retrieve OpenAI Batch Status",
     description="Fetch details of a specific OpenAI batch.",
 )
 def retrieve_batch(
@@ -162,7 +162,7 @@ def cancel_batch(
 
 
 @router.get(
-    "/",
+    "/list-batches",
     response_model=batch_schema.ListBatchesResponse,
     summary="List OpenAI Batches",
     description="Return a paginated list of your organization’s OpenAI batches.",

@@ -218,7 +218,7 @@ class OpenAIBatchResponse(OpenAIBatch):
             "Keys are strings with a maximum length of 64 characters. Values are strings with a maximum length of 512 characters."
         ),
     )
-
+    # TODO: Replace `class Config` with Pydantic V2 ConfigDict
     class Config:
         orm_mode = True
         schema_extra = {
