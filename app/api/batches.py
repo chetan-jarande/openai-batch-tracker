@@ -6,7 +6,6 @@ from fastapi import (
     APIRouter,
     HTTPException,
     status,
-    Query,
     Depends,  # TODO: Check if this is needed
 )
 from fastapi.responses import (
@@ -26,9 +25,8 @@ from openai import OpenAI, AsyncOpenAI
 
 from openai import HttpxBinaryResponseContent
 from openai.types import Batch as OpenAIBatch
-from app.utils.deps import DBSession, OpenAIClientDep
+from app.utils.deps import OpenAIClientDep
 from app.schemas import batch as batch_schema
-from app.schemas import common as common_schema
 
 logger = logging.getLogger(__name__)
 

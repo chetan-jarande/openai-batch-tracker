@@ -19,10 +19,11 @@ class OpenAIFileObjectSchema(OpenAIFileObject):
     Pydantic schema representing an OpenAI File object, as returned by their API.
     Based on: https://platform.openai.com/docs/api-reference/files/object
     """
+
     # Parent should suffice the OpenAI FileObject requirements here
     # this class is created to add more thing on top of what is there already under OpenAI's FileObject class
     pass
-
+    # TODO: Check This Model if it gives the required info else overwrite the model filed using below data
     # id: str = Field(
     #     description="The file identifier, which can be referenced in other API endpoints."
     # )
@@ -49,62 +50,6 @@ class OpenAIFileObjectSchema(OpenAIFileObject):
     # model_config = ConfigDict(from_attributes=True)
 
 
-# --- Base Schemas for our internal representation ---
-class FileBase(BaseModel):
-    """
-    Base schema for file attributes for our internal database records.
-    Common fields shared across create and read schemas.
-    Reflects the structure of an OpenAI File object but adapted for our DB.
-    """
-
-    openai_file_id: str = Field(
-        ...,
-        description="The unique identifier for the file on OpenAI's servers.",
-        examples=["file-abc123xyz789"],
-    )
-    filename: str = Field(
-        ...,
-        description="The name of the file.",
-        examples=["my_batch_input.jsonl"]
-    )
-    bytes_size: int = Field(
-        ...,
-        description="Size of the file in bytes.",
-        ge=0, # Must be greater than or equal to 0
-        examples=[10240] # 10KB
-    )
-    purpose: str = Field(
-        ...,
-        description="The intended purpose of the file (e.g., 'batch', 'fine-tune', 'assistants').",
-        examples=["batch"],
-    )
-    status: Optional[str] = Field(
-        None,
-        description="The current status of the file processing on OpenAI (e.g., 'uploaded', 'processed', 'error').",
-        examples=["uploaded"],
-    )
-    status_details: Optional[str] = Field(
-        None,
-        description="Additional details about the file's status, especially in case of errors.",
-        examples=["File processing failed due to invalid format."],
-    )
-    openai_created_at: Optional[int] = Field(
-        None,
-        description="Unix timestamp of when the file was created on OpenAI's servers.",
-        examples=[1677652286],
-    )
-
-
-# --- Schemas for API Requests ---
-class FileCreate(FileBase):
-    """
-    Schema for creating a new file record in our database.
-    This is typically used after a file has been successfully uploaded to OpenAI.
-    """
-
-    pass
-
-
 class FileUploadRequest(BaseModel):
     """
     Schema for the request body parameters when uploading a file through our API.
@@ -120,12 +65,12 @@ class FileUploadRequest(BaseModel):
         "batch",
         description="The purpose of the file. Defaults to 'batch'.",
         examples=[
-            "batch", # Used in the Batch API
-            "assistants", # Used in the Assistants API
-            "fine-tune", # Used for fine-tuning
-            "vision", # Images used for vision fine-tuning
-            "user_data", # Flexible file type for any purpose
-            "evals", # Used for eval data sets
+            "batch",  # Used in the Batch API
+            "assistants",  # Used in the Assistants API
+            "fine-tune",  # Used for fine-tuning
+            "vision",  # Images used for vision fine-tuning
+            "user_data",  # Flexible file type for any purpose
+            "evals",  # Used for eval data sets
         ],
     )
 
@@ -135,6 +80,7 @@ class OpenAIFileListRequestParams(BaseModel):
     Pydantic model for query parameters when listing files from OpenAI.
     Based on: https://platform.openai.com/docs/api-reference/files/list
     """
+
     # TODO: Check if we can leverage OpenAI's FileListParams directly here by inheriting this class from it.
     purpose: Optional[str] = Field(
         None, description="Only return files with the given purpose."
@@ -160,52 +106,6 @@ class OpenAIFileListRequestParams(BaseModel):
     )
 
 
-# --- Schemas for API Responses (Public Facing for our DB records) ---
-class FilePublic(FileBase):
-    """
-    Schema for representing a file from our database when returned by the API (public view).
-    This includes our internal database ID and audit timestamps.
-    """
-    # TODO: Make sure This id should be same as the OpenAI file ID
-    id: int = Field( # This is our internal auto-incrementing primary key
-        ..., description="Internal database ID of the file record."
-    )
-    created_at: datetime = Field(
-        ...,
-        description="Timestamp when the file record was created in our database."
-    )
-    updated_at: datetime = Field(
-        ...,
-        description="Timestamp when the file record was last updated in our database.",
-    )
-    model_config = ConfigDict(from_attributes=True)
-
-
-class PaginatedFilePublicResponse(PaginatedResponse[FilePublic]):
-    """
-    Paginated response for listing files from our database.
-    """
-
-    pass
-
-
-# --- Schemas for Database Interaction (Internal) ---
-class FileInDBBase(FileBase):
-    """
-    Schema for file data as it's stored in the database, including internal ID.
-    This is an intermediate base for ORM model interaction.
-    """
-
-    id: int = Field(..., description="Internal database ID.")
-    created_at: datetime = Field(
-        ..., description="Timestamp of creation in our database."
-    )
-    updated_at: datetime = Field(
-        ..., description="Timestamp of last update in our database."
-    )
-    model_config = ConfigDict(from_attributes=True)
-
-
 class FileUpdate(BaseModel):
     """
     Schema for updating an existing file record in our database.
@@ -219,8 +119,7 @@ class FileUpdate(BaseModel):
     status: Optional[str] = None
     status_details: Optional[str] = None
     openai_created_at: Optional[int] = None
-    model_config = ConfigDict(extra="forbid") # Forbid extra fields during update
-
+    model_config = ConfigDict(extra="forbid")  # Forbid extra fields during update
 
 
 # --- Enum for File Content Actions ---
@@ -229,15 +128,18 @@ class FileContentAction(str, Enum):
     Defines the possible actions to perform with the retrieved file content
     when NOT downloading it as a file.
     """
+
     GET_JSON = "get_json"
     GET_TEXT = "get_text"
     GET_BYTES = "get_bytes"
+
 
 # --- Pydantic Model for File Content Request Parameters ---
 class FileContentRequestParams(BaseModel):
     """
     Parameters to control how file content retrieved from OpenAI is processed and returned.
     """
+
     action: FileContentAction = Field(
         default=FileContentAction.GET_BYTES,
         description=(
@@ -245,17 +147,15 @@ class FileContentRequestParams(BaseModel):
             "`get_json` attempts to parse and return content as JSON. "
             "`get_text` returns content as a UTF-8 decoded string. "
             "`get_bytes` returns the raw binary content in the response body."
-        )
+        ),
     )
     download_as: Optional[str] = Field(
         default=None,
         description=(
             "If provided, the file content will be streamed as a download with this filename. "
             "The 'action' parameter is ignored when 'download_as' is specified."
-        )
+        ),
     )
-
-
 
 
 # --- Example Usage ---
@@ -310,39 +210,6 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"OpenAIFileListRequestParams validation error: {e}")
 
-    # Test FileCreate schema
-    file_create_data = {
-        "openai_file_id": "file-123",
-        "filename": "batch_data.jsonl",
-        "bytes_size": 2048,
-        "purpose": "batch",
-        "status": "uploaded",
-        "openai_created_at": 1677652300,
-    }
-    try:
-        created_file = FileCreate(**file_create_data)
-        logger.info(f"FileCreate valid: {created_file.model_dump_json(indent=2)}")
-    except Exception as e:
-        logger.error(f"FileCreate validation error: {e}")
-
-    # Test FilePublic schema (simulating data from DB)
-    file_public_data = {
-        "id": 1,
-        "openai_file_id": "file-456",
-        "filename": "another_batch.jsonl",
-        "bytes_size": 4096,
-        "purpose": "batch",
-        "status": "processed",
-        "openai_created_at": 1677652400,
-        "created_at": datetime.now(),
-        "updated_at": datetime.now(),
-    }
-    try:
-        public_file = FilePublic(**file_public_data)
-        logger.info(f"FilePublic valid: {public_file.model_dump_json(indent=2)}")
-    except Exception as e:
-        logger.error(f"FilePublic validation error: {e}")
-
     # Test FileUpdate schema
     file_update_data = {"status": "error", "status_details": "Processing failed."}
     try:
@@ -350,18 +217,5 @@ if __name__ == "__main__":
         logger.info(f"FileUpdate valid: {update_file.model_dump_json(indent=2)}")
     except Exception as e:
         logger.error(f"FileUpdate validation error: {e}")
-
-    # Test PaginatedFilePublicResponse
-    paginated_files_data = {
-        "count": 1,
-        "limit": 10,
-        "offset": 0,
-        "items": [file_public_data] # Re-use the public_file_data for an item
-    }
-    try:
-        paginated_response = PaginatedFilePublicResponse(**paginated_files_data)
-        logger.info(f"PaginatedFilePublicResponse valid: {paginated_response.model_dump_json(indent=2)}")
-    except Exception as e:
-        logger.error(f"PaginatedFilePublicResponse validation error: {e}")
 
     logger.info("File schemas test complete.")

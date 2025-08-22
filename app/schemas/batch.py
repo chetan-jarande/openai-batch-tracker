@@ -1,14 +1,11 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from openai.types import (
     Batch as OpenAIBatch,
 )
-
-# Import the status enum from the model to ensure consistency
-from app.db.models import BatchStatus
 
 
 # --- Helper Schema for OpenAI Error Object ---
@@ -30,6 +27,35 @@ class RequestCounts(BaseModel):
     failed: int
 
 
+class OpenAIBatchStatus(StrEnum):
+    """
+    Represents the status of an OpenAI Batch.
+    ```
+    Status      Description
+    -------------------------------------------------------------------------------------------
+    validating:  The input file is being validated before the batch can begin
+    failed:      The input file has failed the validation process
+    in_progress: The input file was successfully validated and the batch is currently being run
+    finalizing:  The batch has completed and the results are being prepared
+    completed:   The batch has been completed and the results are ready
+    expired:     The batch was not able to be completed within the 24-hour time window
+    cancelling:  The batch is being cancelled (may take up to 10 minutes)
+    cancelled:   The batch was cancelled
+    -------------------------------------------------------------------------------------------
+    ```
+    Doc: https://platform.openai.com/docs/guides/batch#4-check-the-status-of-a-batch
+    """
+
+    VALIDATING = "validating"
+    FAILED = "failed"
+    IN_PROGRESS = "in_progress"
+    FINALIZING = "finalizing"
+    COMPLETED = "completed"
+    EXPIRED = "expired"
+    CANCELLING = "cancelling"
+    CANCELLED = "cancelled"
+
+
 # --- Base Schema ---
 # Contains common fields, mapping closely to the OpenAI Batch object structure
 class BatchBase(BaseModel):
@@ -49,9 +75,9 @@ class BatchBase(BaseModel):
         default="24h",
         description="The time frame within which the batch should be processed.",
     )
-    status: BatchStatus = Field(
+    status: OpenAIBatchStatus = Field(
         ..., description="The current status of the batch job."
-    )  # Now required, maps to OpenAI status
+    )
 
     # Optional fields that appear based on status/outcome
     output_file_id: Optional[str] = Field(
@@ -107,7 +133,7 @@ class BatchBase(BaseModel):
 
 # --- Schema for Creating a Batch Record ---
 # Fields required when initially registering a batch known to us
-class BatchEndpoint(str, Enum):
+class BatchEndpoint(StrEnum):
     """Supported OpenAI batch endpoints."""
 
     RESPONSES = "/v1/responses"
@@ -144,6 +170,7 @@ class OpenAIBatchCreate(BaseModel):
     metadata: dict[str, str] | None = Field(
         None, description="Optional metadata map (max 16 key-value pairs)"
     )
+
     # TODO:  Use the config dict methods here
     class Config:
         schema_extra = {
@@ -158,33 +185,6 @@ class OpenAIBatchCreate(BaseModel):
             }
         }
 
-
-class OpenAIBatchStatus(str, Enum):
-    """
-    Represents the status of an OpenAI Batch.
-    ```
-    Status      Description
-    ------------------------------------------------------------------------------------------
-    validating:  the input file is being validated before the batch can begin
-    failed:      the input file has failed the validation process
-    in_progress: the input file was successfully validated and the batch is currently being run
-    finalizing:  the batch has completed and the results are being prepared
-    completed:   the batch has been completed and the results are ready
-    expired:     the batch was not able to be completed within the 24-hour time window
-    cancelling:  the batch is being cancelled (may take up to 10 minutes)
-    cancelled:   the batch was cancelled
-    ```
-    Doc: https://platform.openai.com/docs/guides/batch#4-check-the-status-of-a-batch
-    """
-
-    VALIDATING = "validating"
-    FAILED = "failed"
-    IN_PROGRESS = "in_progress"
-    FINALIZING = "finalizing"
-    COMPLETED = "completed"
-    EXPIRED = "expired"
-    CANCELLING = "cancelling"
-    CANCELLED = "cancelled"
 
 class OpenAIBatchResponse(OpenAIBatch):
     """
@@ -218,6 +218,7 @@ class OpenAIBatchResponse(OpenAIBatch):
             "Keys are strings with a maximum length of 64 characters. Values are strings with a maximum length of 512 characters."
         ),
     )
+
     # TODO: Replace `class Config` with Pydantic V2 ConfigDict
     class Config:
         orm_mode = True
@@ -248,112 +249,6 @@ class OpenAIBatchResponse(OpenAIBatch):
                 },
             }
         }
-
-
-# --- Schema for Creating a Batch Record in Our DB ---
-class BatchCreateInDB(BaseModel):
-    """Schema used for creating a new BatchRequest record in our database."""
-
-    # Typically, you get these details *after* creating the batch via OpenAI API
-    openai_batch_id: str = Field(
-        ..., description="The unique ID returned by OpenAI Batch API."
-    )
-    input_file_id: str = Field(
-        ..., description="OpenAI File ID provided during creation."
-    )
-    endpoint: BatchEndpoint = Field(
-        ..., description="The OpenAI API endpoint targetted."
-    )
-    completion_window: str = Field(
-        default="24h", description="Completion window requested."
-    )
-    status: BatchStatus = Field(
-        default=BatchStatus.PENDING,
-        description="Initial status (can be updated once OpenAI confirms).",
-    )  # Default to internal 'pending'
-    metadata_: Optional[Dict[str, Any]] = Field(
-        None, alias="metadata", description="Optional user-defined metadata."
-    )
-    openai_created_at: Optional[int] = Field(
-        None, description="Unix timestamp from OpenAI creation response."
-    )  # Can be set on creation
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-# --- Schema for Updating a Batch Record ---
-# Fields likely to change based on polling OpenAI API
-class BatchUpdateInDB(BaseModel):
-    """Schema used for updating an existing BatchRequest record, typically from OpenAI API polling."""
-
-    # Make fields optional for partial updates based on fetched data
-    status: Optional[BatchStatus] = Field(
-        None, description="Updated status from OpenAI."
-    )
-    output_file_id: Optional[str] = Field(
-        None, description="Updated output file ID from OpenAI."
-    )
-    error_file_id: Optional[str] = Field(
-        None, description="Updated error file ID from OpenAI."
-    )
-    errors: Optional[Dict[str, List[OpenAIError]]] = Field(
-        None, description="Updated structured errors from OpenAI."
-    )
-    request_counts: Optional[RequestCounts] = Field(
-        None, description="Updated request counts from OpenAI."
-    )
-
-    # Timestamps that might get populated as the batch progresses
-    in_progress_at: Optional[int] = Field(
-        None, description="Updated 'in_progress_at' timestamp."
-    )
-    expires_at: Optional[int] = Field(
-        None, description="Updated 'expires_at' timestamp."
-    )  # Usually static after creation
-    finalizing_at: Optional[int] = Field(
-        None, description="Updated 'finalizing_at' timestamp."
-    )
-    completed_at: Optional[int] = Field(
-        None, description="Updated 'completed_at' timestamp."
-    )
-    failed_at: Optional[int] = Field(None, description="Updated 'failed_at' timestamp.")
-    cancelled_at: Optional[int] = Field(
-        None, description="Updated 'cancelled_at' timestamp."
-    )
-
-    # Metadata could potentially be updated via OpenAI API, though less common
-    metadata_: Optional[Dict[str, Any]] = Field(
-        None, alias="metadata", description="Updated metadata."
-    )
-
-    # Pydantic V2 configuration
-    model_config = ConfigDict(
-        extra="ignore",  # Ignore extra fields not defined in schema
-        populate_by_name=True,  # Allow using 'metadata' alias
-    )
-
-
-# --- Schema for Reading/Returning Batch Data ---
-# Includes internal DB fields along with OpenAI fields
-# TODO: remove this if not in used for primary functions
-# This will be removed as the DB utils will be removed
-class Batch(BatchBase):
-    """Schema used for returning BatchRequest data from the API, including internal DB fields."""
-
-    id: int = Field(..., description="Internal database ID of the batch record.")
-    created_at: datetime = Field(
-        ..., description="Timestamp when the record was created in *this* system."
-    )
-    updated_at: datetime = Field(
-        ..., description="Timestamp when the record was last updated in *this* system."
-    )
-
-    # Inherits all fields from BatchBase
-    # Ensure model_config includes from_attributes=True if not inherited implicitly
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True,
-    )
 
 
 # # --- Schema for Paginated Batch List Response ---

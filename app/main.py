@@ -3,12 +3,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware # Optional: For CORS
+from fastapi.middleware.cors import CORSMiddleware  # Optional: For CORS
 from app.core.config import get_settings, Settings
 from app.api import files as files_api
 from app.api import batches as batches_api
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
-from app.db.session import check_db_connection
 
 
 try:
@@ -18,7 +17,6 @@ except Exception as e:
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     logger.error(f"Critical error during logging setup: {e}", exc_info=True)
-
 
 
 @asynccontextmanager
@@ -41,7 +39,7 @@ async def lifespan(app: FastAPI):
         logger.exception(f"Application lifespan: CRITICAL error during startup: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Application failed to initialize critical services: {str(e)}"
+            detail=f"Application failed to initialize critical services: {str(e)}",
         ) from e
     finally:
         # This block executes regardless of whether an exception occurred in the try block or during app execution.
@@ -58,7 +56,7 @@ app = FastAPI(
     # redoc_url=f"{settings.API_V1_STR}/redoc",
     version="0.1.0",
     description="API for tracking OpenAI Batch API jobs and managing associated files.",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # --- Middleware ---
@@ -84,8 +82,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     for error in exc.errors():
         field = " -> ".join(str(loc) for loc in error["loc"])
         message = error["msg"]
-        error_messages.append({ "field": field, "message": message, "type": error["type"]})
-    logger.warning(f"Request validation error: {exc.errors()} for request: {request.method} {request.url}")
+        error_messages.append(
+            {
+                "field": field,
+                "message": message,
+                "type": error["type"],
+            }
+        )
+    logger.warning(
+        f"Request validation error: {exc.errors()} for request: {request.method} {request.url}"
+    )
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": "Validation Error", "errors": error_messages},
@@ -116,8 +122,6 @@ app.include_router(
 logger.info("Included Batches API router into API v1 router with prefix '/batches'.")
 
 
-
-
 # --- Root Endpoint ---
 @app.get("/", tags=["Root"])
 async def read_root():
@@ -126,7 +130,7 @@ async def read_root():
         "message": f"Welcome to {settings.PROJECT_NAME}",
         "status": "API is running",
         "documentation_v1": f"{settings.API_V1_STR}/docs",
-        "project_version": app.version
+        "project_version": app.version,
     }
 
 
@@ -143,31 +147,24 @@ def service_status_check():
     """
     logger.info("Health check endpoint '/status' accessed.")
 
-    db_status_ok = check_db_connection()
-
     response_content = {
         "service_status": "ok",
-        "database_status": "ok" if db_status_ok else "error"
     }
 
-    # Determine overall HTTP status code based on dependencies
-    # If DB is critical, the service might be considered unhealthy if DB is down.
-    http_status_code = status.HTTP_200_OK if db_status_ok else status.HTTP_503_SERVICE_UNAVAILABLE
-
-    if not db_status_ok:
-        logger.warning("Database connectivity check failed during health check.")
-
-    return JSONResponse(content=response_content, status_code=http_status_code)
+    return JSONResponse(content=response_content, status_code=status.HTTP_200_OK)
 
 
 # --- Main execution (for Uvicorn) ---
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting application directly using Uvicorn (for development/debugging)...")
+
+    logger.info(
+        "Starting application directly using Uvicorn (for development/debugging)..."
+    )
     uvicorn.run(
         "app.main:app",
         host=settings.SERVER_HOST,
         port=settings.SERVER_PORT,
         log_level=settings.LOG_LEVEL.lower(),
-        reload=True
+        reload=True,
     )
