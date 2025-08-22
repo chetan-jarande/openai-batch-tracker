@@ -7,7 +7,7 @@ name = "OpenAI-Batch-Tracker"
 version = "0.1.0"
 description = "Provides a FastAPI application for tracking OpenAI batch processing tasks."
 authors = [
-  { name="Chetan Jarande", email="chetan@example.com" },
+  { name="Chetan Jarande", email="chetan.legacy@myworld.com" },
 ]
 readme = "README.md"
 license = "MIT"
