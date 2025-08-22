@@ -1,5 +1,5 @@
 import logging
-from enum import Enum
+from enum import StrEnum
 from datetime import datetime
 from typing import Optional, List, Literal
 from openai.types import (
@@ -123,7 +123,7 @@ class FileUpdate(BaseModel):
 
 
 # --- Enum for File Content Actions ---
-class FileContentAction(str, Enum):
+class FileContentAction(StrEnum):
     """
     Defines the possible actions to perform with the retrieved file content
     when NOT downloading it as a file.
