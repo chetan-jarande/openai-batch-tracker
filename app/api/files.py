@@ -44,7 +44,7 @@ router = APIRouter()
 
 @router.post(
     "/upload",
-    response_model=file_schema.FilePublic,
+    response_model=file_schema.OpenAIFileObjectSchema,
     status_code=status.HTTP_201_CREATED,
     summary="Upload File to OpenAI and Store Metadata",
     description="Uploads a file to OpenAI and stores its metadata in the local database.",
@@ -57,7 +57,7 @@ def upload_file_to_openai(
     file: UploadFile = FastApiFile(
         ..., description="The batch input file to upload (e.g., a .jsonl file)."
     ),
-) -> file_schema.FilePublic:
+) -> file_schema.OpenAIFileObjectSchema:
     """
     Handles file uploads to OpenAI.
     1.  Receives a file via `UploadFile`.
@@ -74,7 +74,7 @@ def upload_file_to_openai(
         file: The file to be uploaded, provided by FastAPI's `UploadFile`.
 
     Returns:
-        A `FilePublic` schema object representing the stored file record.
+        A `OpenAIFileObjectSchema` schema object representing the stored file record.
 
     Raises:
         HTTPException:
@@ -220,7 +220,7 @@ def list_files_from_openai(
 def retrieve_file_from_openai(
     openai_file_id: str,
     client: OpenAIClientDep,
-) -> file_schema.FilePublic:
+) -> file_schema.OpenAIFileObjectSchema:
     """
     Retrieves a specific file record from OpenAI by its OpenAI File ID.
 

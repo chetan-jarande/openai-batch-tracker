@@ -18,6 +18,7 @@ RUN pip install --upgrade pip
 
 # Copy only the pyproject.toml file to leverage Docker cache
 COPY pyproject.toml .
+COPY README.md .
 
 # Install all dependencies from pyproject.toml into the virtual environment
 # For a pure production build, you might omit the [dev] part.
@@ -25,7 +26,7 @@ RUN pip install --no-cache-dir .[dev]
 
 # Copy the rest of the application source code
 COPY ./app /app/app
-COPY ./templates /app/templates
+COPY ./app/templates /app/templates
 
 
 # === Final Stage ===

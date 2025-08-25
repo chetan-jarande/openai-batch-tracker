@@ -19,6 +19,7 @@ dependencies = [
     "uvicorn>=0.34.2",
     # Pydantic for data validation
     "pydantic>=2.11.3",
+    "pydantic-settings>=2.0.0",
     # For reading .env files
     "python-dotenv>=1.1.0",
     # For HTML templating
@@ -31,9 +32,14 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "ruff>=0.5.0",
+    "mypy>=1.10.0",
 ]
 
 [tool.hatch.build.targets.wheel]
 # Adjust 'app' to your source directory name if it's different.
 # This tells Hatch what to include in the final package.
 packages = ["app/"]
+
+[tool.mypy]
+ignore_missing_imports = true
+

@@ -1,14 +1,14 @@
 
 # Use the project name for containers, networks, etc.
 # This prevents conflicts if you have other projects.
-PROJECT_NAME = OPENAI_BATCH_TRACKER
+PROJECT_NAME = openai-batch-tracker
 
 # Default command when you just type "make"
 .DEFAULT_GOAL := help
 
 # Build the docker images for the services
 build:
-	docker-compose -p $(PROJECT_NAME) build
+	docker-compose -p $(PROJECT_NAME) build --no-cache 
 
 # Start the services in detached mode
 up:

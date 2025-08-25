@@ -13,7 +13,7 @@ services:
       # Mount a volume for persistent logs
       - app_logs:/app/logs
       # For development, you can uncomment the next line to live-reload code changes
-      # - ./app:/app/app
+      - ./app:/app/app
     ports:
       - "8000:8000"
     networks:
