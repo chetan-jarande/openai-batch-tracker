@@ -13,6 +13,20 @@ from app.schemas.common import PaginatedResponse  # For paginated list response
 logger = logging.getLogger(__name__)
 
 
+class OpenAIFilePurpose(StrEnum):
+    """
+    Enum representing valid purposes for OpenAI files.
+    Based on: https://platform.openai.com/docs/api-reference/files/create
+    """
+
+    ASSISTANTS = "assistants"  # Used in the Assistants API
+    BATCH = "batch"  # Used in the Batch API
+    FINE_TUNE = "fine-tune"  # Used for fine-tuning
+    VISION = "vision"  # Images used for vision fine-tuning
+    USER_DATA = "user_data"  # Flexible file type for any purpose
+    EVALS = "evals"  # Used for eval data sets
+
+
 # --- Schemas for OpenAI File Object (for responses) ---
 class OpenAIFileObjectSchema(OpenAIFileObject):
     """
@@ -20,34 +34,26 @@ class OpenAIFileObjectSchema(OpenAIFileObject):
     Based on: https://platform.openai.com/docs/api-reference/files/object
     """
 
-    # Parent should suffice the OpenAI FileObject requirements here
-    # this class is created to add more thing on top of what is there already under OpenAI's FileObject class
-    pass
-    # TODO: Check This Model if it gives the required info else overwrite the model filed using below data
-    # id: str = Field(
-    #     description="The file identifier, which can be referenced in other API endpoints."
-    # )
-    # bytes: int = Field(description="The size of the file, in bytes.")
-    # created_at: int = Field(
-    #     description="The Unix timestamp (in seconds) for when the file was created."
-    # )
-    # filename: str = Field(description="The name of the file.")
-    # object: Literal["file"] = Field(
-    #     description="The object type, which is always 'file'."
-    # )
-    # purpose: str = Field(
-    #     description="The intended purpose of the file. Supported values are 'fine-tune', 'fine-tune-results', 'assistants', and 'assistants_output'."
-    # )
-    # status: Optional[str] = Field(
-    #     None,
-    #     description="Deprecated. The current status of the file, which can be 'uploaded', 'processed', 'error'.",
-    # )
-    # status_details: Optional[str] = Field(
-    #     None,
-    #     description="Deprecated. For details on why a fine-tune training file failed processing, see the `error` field on the fine-tune object.",
-    # )
+    id: str = Field(description="The file identifier, which can be referenced in the API endpoints.")
+    bytes: int = Field(description="The size of the file, in bytes.")
+    created_at: int = Field(description="The Unix timestamp (in seconds) for when the file was created.")
+    filename: str = Field(description="The name of the file.", examples=["mydata.jsonl"])
+    object: Literal["file"] = Field(default="file", description="The object type, which is always 'file'.")
+    purpose: OpenAIFilePurpose = Field(
+        description="The intended purpose of the file. Docs https://platform.openai.com/docs/api-reference/files/object#files/object-purpose."
+    )
+    expires_at: int | None = Field(None, description="The Unix timestamp (in seconds) for when the file will expire.")
 
-    # model_config = ConfigDict(from_attributes=True)
+    status: Literal["uploaded", "processed", "error"] | None = Field(
+        None,
+        description="Deprecated: The current status of the file, which can be either 'uploaded', 'processed', or 'error'.",
+    )
+    status_details: str | None = Field(
+        None,
+        description="Deprecated: For details on why a fine-tuning training file failed validation, see the 'error' field on fine_tuning.job.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FileUploadRequest(BaseModel):
@@ -57,20 +63,16 @@ class FileUploadRequest(BaseModel):
     Doc: https://platform.openai.com/docs/api-reference/files/create
     """
 
-    filename: Optional[str] = Field(
-        None,
-        description="Optional: suggested filename. If not provided, uses the uploaded file's name (default fallback).",
-    )
-    purpose: str = Field(
-        "batch",
-        description="The purpose of the file. Defaults to 'batch'.",
+    purpose: OpenAIFilePurpose = Field(
+        default=OpenAIFilePurpose.BATCH,
+        description="The purpose of the file. Defaults to 'batch'. Check docs for valid purposes.",
         examples=[
-            "batch",  # Used in the Batch API
-            "assistants",  # Used in the Assistants API
-            "fine-tune",  # Used for fine-tuning
-            "vision",  # Images used for vision fine-tuning
-            "user_data",  # Flexible file type for any purpose
-            "evals",  # Used for eval data sets
+            OpenAIFilePurpose.BATCH,
+            OpenAIFilePurpose.ASSISTANTS,
+            OpenAIFilePurpose.FINE_TUNE,
+            OpenAIFilePurpose.VISION,
+            OpenAIFilePurpose.USER_DATA,
+            OpenAIFilePurpose.EVALS,
         ],
     )
 
@@ -82,9 +84,7 @@ class OpenAIFileListRequestParams(BaseModel):
     """
 
     # TODO: Check if we can leverage OpenAI's FileListParams directly here by inheriting this class from it.
-    purpose: Optional[str] = Field(
-        None, description="Only return files with the given purpose."
-    )
+    purpose: Optional[str] = Field(None, description="Only return files with the given purpose.")
     limit: int = Field(
         50,  # Default value for OpenAI Files list is 10000
         description="A limit on the number of objects to be returned. Limit can range between 1 and 10000, and the default is 50.",
@@ -148,6 +148,7 @@ class FileContentRequestParams(BaseModel):
             "`get_text` returns content as a UTF-8 decoded string. "
             "`get_bytes` returns the raw binary content in the response body."
         ),
+        examples=[FileContentAction.GET_BYTES, FileContentAction.GET_JSON, FileContentAction.GET_TEXT],
     )
     download_as: Optional[str] = Field(
         default=None,
@@ -175,9 +176,7 @@ if __name__ == "__main__":
     }
     try:
         parsed_openai_file = OpenAIFileObjectSchema(**openai_file_data)
-        logger.info(
-            f"OpenAIFileObjectSchema valid: {parsed_openai_file.model_dump_json(indent=2)}"
-        )
+        logger.info(f"OpenAIFileObjectSchema valid: {parsed_openai_file.model_dump_json(indent=2)}")
     except Exception as e:
         logger.error(f"OpenAIFileObjectSchema validation error: {e}")
 
@@ -186,9 +185,7 @@ if __name__ == "__main__":
     try:
         upload_req = FileUploadRequest(**upload_req_data)
         logger.info(f"FileUploadRequest valid: {upload_req.model_dump_json(indent=2)}")
-        upload_req_default_purpose = FileUploadRequest(
-            filename="test.txt"
-        )  # Purpose defaults to "batch"
+        upload_req_default_purpose = FileUploadRequest(filename="test.txt")  # Purpose defaults to "batch"
         logger.info(
             f"FileUploadRequest (default purpose) valid: {upload_req_default_purpose.model_dump_json(indent=2)}"
         )
@@ -200,13 +197,9 @@ if __name__ == "__main__":
     list_params_data = {"limit": 10, "purpose": "batch"}
     try:
         list_params = OpenAIFileListRequestParams(**list_params_data)
-        logger.info(
-            f"OpenAIFileListRequestParams valid: {list_params.model_dump_json(indent=2)}"
-        )
+        logger.info(f"OpenAIFileListRequestParams valid: {list_params.model_dump_json(indent=2)}")
         default_list_params = OpenAIFileListRequestParams()  # Test with defaults
-        logger.info(
-            f"OpenAIFileListRequestParams (defaults) valid: {default_list_params.model_dump_json(indent=2)}"
-        )
+        logger.info(f"OpenAIFileListRequestParams (defaults) valid: {default_list_params.model_dump_json(indent=2)}")
     except Exception as e:
         logger.error(f"OpenAIFileListRequestParams validation error: {e}")
 

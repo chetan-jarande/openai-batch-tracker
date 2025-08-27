@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Annotated, Any, AsyncGenerator
+from typing import List, Optional, Any, AsyncGenerator
 from pathlib import Path
 
 from fastapi import (
@@ -8,7 +8,7 @@ from fastapi import (
     status,
     UploadFile,
     File as FastApiFile,
-    Depends,  # TODO: Check if this is needed
+    Depends,
 )
 from fastapi.responses import (
     Response,
@@ -25,7 +25,7 @@ from openai._exceptions import (
 )
 from openai._streaming import (
     Stream as OpenAIStream,
-)  # For type hinting the stream from .content()
+)
 from openai import HttpxBinaryResponseContent
 
 from app.utils.deps import OpenAIClient
@@ -46,13 +46,13 @@ router = APIRouter()
     "/upload",
     response_model=file_schema.OpenAIFileObjectSchema,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload File to OpenAI and Store Metadata",
-    description="Uploads a file to OpenAI and stores its metadata in the local database.",
+    summary="Upload File to OpenAI",
+    description="Uploads a file to OpenAI <br/>More details in Doc: https://platform.openai.com/docs/api-reference/files/create",
 )
 def upload_file_to_openai(
-    request_params: file_schema.FileUploadRequest,
     client: OpenAIClient,
     file: UploadFile = FastApiFile(..., description="The batch input file to upload (e.g., a .jsonl file)."),
+    request_params: file_schema.FileUploadRequest = Depends(),
 ) -> file_schema.OpenAIFileObjectSchema:
     """
     Handles file uploads to OpenAI.
@@ -78,12 +78,9 @@ def upload_file_to_openai(
 
     """
     # Use the filename from request_params if provided, otherwise from the uploaded file
-    effective_filename = request_params.filename or file.filename
-    effective_purpose = request_params.purpose  # Purpose from request, defaults to "batch" in schema
+    purpose = request_params.purpose
 
-    logger.info(
-        f"Attempting to upload file: {effective_filename}, content type: {file.content_type}, purpose: {effective_purpose}"
-    )
+    logger.info(f"Attempting to upload file: {file.filename}, content type: {file.content_type}, purpose: {purpose}")
 
     # TODO: Check if a file with the same name (and potentially content) already exists in OpenAI
     # This is an optional check. For now, we proceed directly to upload.
@@ -92,38 +89,37 @@ def upload_file_to_openai(
         # The `file.file` attribute is a file-like object.
         # OpenAI SDK's `client.files.create` expects a file tuple: (filename, file_object, content_type)
         # or a file-like object directly for the `file` parameter.
-        # The `purpose` is hardcoded to "batch" as per requirements.
         uploaded_openai_file = client.files.create(
-            file=(effective_filename, file.file, file.content_type),  # Pass as a tuple
-            purpose=effective_purpose,
+            file=(file.filename, file.file, file.content_type),  # Pass as a tuple
+            # OR
+            # file=open(file.filename, "rb")
+            purpose=purpose,
         )
-        logger.info(f"File '{effective_filename}' uploaded successfully to OpenAI. File ID: {uploaded_openai_file.id}")
-
+        logger.info(f"File '{file.filename}' uploaded successfully to OpenAI. File ID: {uploaded_openai_file.id}")
+        return JSONResponse(
+            uploaded_openai_file,
+            status_code=status.HTTP_201_CREATED,
+        )
     except (APIConnectionError, RateLimitError) as e:
-        logger.error(f"OpenAI API error during file upload for '{effective_filename}': {e}")
+        logger.error(f"OpenAI API error during file upload for '{file.filename}': {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"OpenAI API is currently unavailable or rate limit exceeded: {str(e)}",
         )
     except APIStatusError as e:
-        logger.error(f"OpenAI API status error during file upload for '{effective_filename}': {e}")
+        logger.error(f"OpenAI API status error during file upload for '{file.filename}': {e}")
         raise HTTPException(
             status_code=e.status_code or status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"OpenAI API error: {e.message or str(e)}",
         )
     except Exception as e:
-        logger.exception(f"Unexpected error during file upload of '{effective_filename}' to OpenAI: {e}")
+        logger.exception(f"Unexpected error during file upload of '{file.filename}' to OpenAI: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred while uploading the file to OpenAI: {str(e)}",
         )
     finally:
         file.file.close()
-
-    return JSONResponse(
-        uploaded_openai_file,
-        status_code=status.HTTP_201_CREATED,
-    )
 
 
 @router.get(
@@ -231,7 +227,7 @@ def retrieve_file_from_openai(
         logger.exception(f"Error retrieving file {openai_file_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not retrieve file {openai_file_id} from the OpenAI.",
+            detail=f"Could not retrieve file {openai_file_id} from the OpenAI. Details: {str(e)}",
         )
 
 
@@ -294,7 +290,7 @@ def delete_openai_file(
         else:
             raise HTTPException(
                 status_code=e.status_code or status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"OpenAI API error: {e.message or str(e)}",
+                detail=f"OpenAI API error: {str(e)}",
             )
     except Exception as e:
         logger.exception(f"Unexpected error deleting file {openai_file_id} from OpenAI: {e}")

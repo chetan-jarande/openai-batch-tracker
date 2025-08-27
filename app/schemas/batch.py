@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, Any, List
-from datetime import datetime
 from enum import StrEnum
 
 from openai.types import (
@@ -171,9 +170,8 @@ class OpenAIBatchCreate(BaseModel):
         None, description="Optional metadata map (max 16 key-value pairs)"
     )
 
-    # TODO:  Use the config dict methods here
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra = {
             "example": {
                 "input_file_id": "file-abc123",
                 "endpoint": "/v1/chat/completions",
@@ -184,6 +182,7 @@ class OpenAIBatchCreate(BaseModel):
                 },
             }
         }
+    )
 
 
 class OpenAIBatchResponse(OpenAIBatch):
@@ -219,10 +218,9 @@ class OpenAIBatchResponse(OpenAIBatch):
         ),
     )
 
-    # TODO: Replace `class Config` with Pydantic V2 ConfigDict
-    class Config:
-        orm_mode = True
-        schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra = {
             "example": {
                 "id": "batch_abc123",
                 "object": "batch",
@@ -249,6 +247,7 @@ class OpenAIBatchResponse(OpenAIBatch):
                 },
             }
         }
+    )
 
 
 # # --- Schema for Paginated Batch List Response ---
@@ -283,5 +282,4 @@ class ListBatchesResponse(BaseModel):
     last_id: Optional[str]
     has_more: bool
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
