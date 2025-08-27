@@ -25,7 +25,7 @@ from openai import OpenAI, AsyncOpenAI
 
 from openai import HttpxBinaryResponseContent
 from openai.types import Batch as OpenAIBatch
-from app.utils.deps import OpenAIClientDep
+from app.utils.deps import OpenAIClient
 from app.schemas import batch as batch_schema
 
 logger = logging.getLogger(__name__)
@@ -47,11 +47,10 @@ router = APIRouter()
     status_code=status.HTTP_201_CREATED,
     summary="Create OpenAI Batch",
     description="Create a new OpenAI batch of requests.",
-    tags=["Batches", "OpenAI"],
 )
 def create_batch(
     batch: batch_schema.OpenAIBatchCreate,
-    openai_client: OpenAIClientDep,
+    openai_client: OpenAIClient,
 ) -> batch_schema.OpenAIBatchResponse:
     """
     Create a new OpenAI batch.
@@ -74,9 +73,7 @@ def create_batch(
     except APIError as e:
         logger.error(f"OpenAI returned error: {e}")
         status_code = getattr(e, "http_status", status.HTTP_500_INTERNAL_SERVER_ERROR)
-        raise HTTPException(
-            status_code=status_code, detail=e.error.get("message", str(e))
-        )
+        raise HTTPException(status_code=status_code, detail=e.error.get("message", str(e)))
     except Exception as e:
         logger.exception("Unexpected error in create_batch")
         raise HTTPException(
@@ -93,7 +90,7 @@ def create_batch(
 )
 def retrieve_batch(
     batch_id: str,
-    openai_client: OpenAIClientDep,
+    openai_client: OpenAIClient,
 ) -> batch_schema.OpenAIBatchResponse:
     """
     Retrieve an OpenAI batch by ID.
@@ -130,7 +127,7 @@ def retrieve_batch(
 )
 def cancel_batch(
     batch_id: str,
-    openai_client: OpenAIClientDep,
+    openai_client: OpenAIClient,
 ) -> batch_schema.OpenAIBatchResponse:
     """
     Cancel a running OpenAI batch by ID.
@@ -167,7 +164,7 @@ def cancel_batch(
 )
 def list_batches(
     params: batch_schema.ListBatchesRequestParams,
-    openai_client: OpenAIClientDep,
+    openai_client: OpenAIClient,
 ) -> batch_schema.ListBatchesResponse:
     """
     List OpenAI batches with optional pagination.
@@ -175,10 +172,7 @@ def list_batches(
     try:
         response = openai_client.batches.list(after=params.after, limit=params.limit)
         # Convert each raw batch into our response model
-        batches = [
-            batch_schema.OpenAIBatchResponse(**item)
-            for item in response.get("data", [])
-        ]
+        batches = [batch_schema.OpenAIBatchResponse(**item) for item in response.get("data", [])]
         return batch_schema.ListBatchesResponse(
             object=response.get("object", "list"),
             data=batches,
