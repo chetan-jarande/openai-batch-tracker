@@ -1,22 +1,17 @@
 import logging
+import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware  # Optional: For CORS
-from app.core.config import get_settings, Settings
+from app.core.config import settings, Evironments
 from app.api import files as files_api
 from app.api import batches as batches_api
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
 
 
-try:
-    logger = logging.getLogger(__name__)
-    settings: Settings = get_settings()
-except Exception as e:
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    logger.error(f"Critical error during logging setup: {e}", exc_info=True)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -28,7 +23,10 @@ async def lifespan(app: FastAPI):
     """
     logger.info("Application lifespan: Initiating startup sequence...")
     try:
-        # Run all startup tasks
+        logger.info(
+            f"Application settings loaded successfully for project: {settings.PROJECT_NAME}",
+            extra=settings.model_dump(),
+        )
         run_startup_logic()
         logger.info("Application lifespan: Startup sequence completed successfully.")
         # This is where the application will run until shutdown.
@@ -50,10 +48,7 @@ async def lifespan(app: FastAPI):
 
 # --- FastAPI Application Instance ---
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    # openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    # docs_url=f"{settings.API_V1_STR}/docs",
-    # redoc_url=f"{settings.API_V1_STR}/redoc",
+    title="OpenAI Batch Tracker API",
     version="0.1.0",
     description="API for tracking OpenAI Batch API jobs and managing associated files.",
     lifespan=lifespan,
@@ -89,9 +84,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                 "type": error["type"],
             }
         )
-    logger.warning(
-        f"Request validation error: {exc.errors()} for request: {request.method} {request.url}"
-    )
+    logger.warning(f"Request validation error: {exc.errors()} for request: {request.method} {request.url}")
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": "Validation Error", "errors": error_messages},
@@ -100,37 +93,20 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 # --- API Routers ---
 
-# Include the files router
-# All routes from files_api.router will be prefixed with /files
-# e.g., /api/v1/files/upload, /api/v1/files/
-app.include_router(
-    files_api.router,
-    prefix="/files",
-    tags=["Files"],
-    # dependencies=[Depends(get_current_active_user)] # Example: Add common dependencies for this group
-)
-logger.info("Included Files API router into API v1 router with prefix '/files'.")
+app.include_router(files_api.router, prefix="/files", tags=["Files"])
 
-# Include the batches router
-# All routes from batches_api.router will be prefixed with /batches
-# e.g., /api/v1/batches/, /api/v1/batches/{openai_batch_id}
-app.include_router(
-    batches_api.router,
-    prefix="/batches",
-    tags=["Batches"],
-)
-logger.info("Included Batches API router into API v1 router with prefix '/batches'.")
+app.include_router(batches_api.router, prefix="/batches", tags=["Batches"])
 
 
 # --- Root Endpoint ---
 @app.get("/", tags=["Root"])
 async def read_root():
-    logger.info("Root endpoint '/' accessed.")
     return {
-        "message": f"Welcome to {settings.PROJECT_NAME}",
-        "status": "API is running",
-        "documentation_v1": f"{settings.API_V1_STR}/docs",
+        "message": "Welcome to OpenAI Batch Tracker API!",
         "project_version": app.version,
+        "documentation": "/docs",
+        "apis": ["/files", "/batches"],
+        "environment": settings.CONF_ENV,
     }
 
 
@@ -154,17 +130,15 @@ def service_status_check():
     return JSONResponse(content=response_content, status_code=status.HTTP_200_OK)
 
 
-# --- Main execution (for Uvicorn) ---
 if __name__ == "__main__":
-    import uvicorn
+    port = settings.SERVER_PORT
+    should_reload = True if settings.CONF_ENV == Evironments.LOCAL else False
+    logger.info("For Env: %s, starting app on port %d with reload=%s", settings.CONF_ENV, port, should_reload)
 
-    logger.info(
-        "Starting application directly using Uvicorn (for development/debugging)..."
-    )
     uvicorn.run(
-        "app.main:app",
+        app="app.main:app",
         host=settings.SERVER_HOST,
-        port=settings.SERVER_PORT,
-        log_level=settings.LOG_LEVEL.lower(),
-        reload=True,
+        port=port,
+        reload=should_reload,
+        workers=5,
     )
