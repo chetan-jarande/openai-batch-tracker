@@ -1,6 +1,6 @@
 # === Build Stage ===
 # Use an official Python runtime as a parent image
-FROM python:3.12-slim as builder
+FROM python:3.13.3-slim as builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1 # Prevents python from writing .pyc files
@@ -31,7 +31,7 @@ COPY ./app/templates /app/templates
 
 # === Final Stage ===
 # Use a smaller base image for the final container
-FROM python:3.12-slim
+FROM python:3.13.3-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
