@@ -1,32 +1,63 @@
 
-# Use the project name for containers, networks, etc.
-# This prevents conflicts if you have other projects.
 PROJECT_NAME = openai-batch-tracker
-
 # Default command when you just type "make"
 .DEFAULT_GOAL := help
 
+PYTHON_VERSION=3.13.3
+VENV_ROOT=./.venv
+
+ifeq ($(shell command -v 'pyenv'),)
+	PYENV_BIN=$(HOME)/.pyenv/bin/pyenv
+else
+	PYENV_BIN=pyenv
+endif
+
+export CONF_ENV?=local
+
+venv:
+	@echo "Using pyenv from '$(PYENV_BIN)'"
+	find . -type d -name '*__pycache__*' | xargs rm -rf
+	"$(PYENV_BIN)" install --skip-existing "$(PYTHON_VERSION)"
+	"$(PYENV_BIN)" local "$(PYTHON_VERSION)"
+	"$(PYENV_BIN)" exec python -m venv --clear --upgrade-deps "$(VENV_ROOT)"
+	"$(PYENV_BIN)" local --unset
+
+dev: venv
+	"$(VENV_ROOT)/bin/pip" install -e '.[dev]'
+
+test: dev
+	"$(VENV_ROOT)/bin/pytest" -vvv
+
+build: venv
+	"$(VENV_ROOT)/bin/pip" install --upgrade build
+	rm -rf ./dist/
+	"$(VENV_ROOT)/bin/python" -m build --wheel --outdir ./dist/
+
+run:
+	"$(VENV_ROOT)/bin/python" -m 'app.main'
+
+
 # Build the docker images for the services
-build:
-	docker-compose -p $(PROJECT_NAME) build --no-cache 
+docker-build:
+	docker-compose -p $(PROJECT_NAME) build --no-cache
 
 # Start the services in detached mode
-up:
+docker-up:
 	docker-compose -p $(PROJECT_NAME) up -d
 
 # Stop and remove the services, networks, and volumes
-down:
+docker-down:
 	docker-compose -p $(PROJECT_NAME) down
 
 # Restart the services
-restart: down up
+docker-restart: down up
 
 # View the logs from the services
-logs:
+docker-logs:
 	docker-compose -p $(PROJECT_NAME) logs -f
 
 # Access a shell inside the running app container
-shell:
+docker-shell:
 	docker-compose -p $(PROJECT_NAME) exec app /bin/bash
 
 # Show this help message
