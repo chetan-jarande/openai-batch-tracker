@@ -1,10 +1,9 @@
-# app/schemas/common.py
-import logging
 from typing import Generic, List, Optional, TypeVar
 
 from pydantic import BaseModel, Field
+from app.core.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Generic type variable for paginated responses
 DataType = TypeVar("DataType")

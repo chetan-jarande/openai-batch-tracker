@@ -1,6 +1,4 @@
-import logging
 from enum import StrEnum
-from datetime import datetime
 from typing import Optional, List, Literal
 from openai.types import (
     FileListParams,
@@ -9,8 +7,9 @@ from openai.types import (
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.schemas.common import PaginatedResponse  # For paginated list response
+from app.core.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class OpenAIFilePurpose(StrEnum):
@@ -83,7 +82,6 @@ class OpenAIFileListRequestParams(BaseModel):
     Based on: https://platform.openai.com/docs/api-reference/files/list
     """
 
-    # TODO: Check if we can leverage OpenAI's FileListParams directly here by inheriting this class from it.
     purpose: Optional[str] = Field(None, description="Only return files with the given purpose.")
     limit: int = Field(
         50,  # Default value for OpenAI Files list is 10000
@@ -104,6 +102,7 @@ class OpenAIFileListRequestParams(BaseModel):
         "desc",  # Default value as per OpenAI docs
         description="Sort order by the 'created_at' timestamp of the objects. 'asc' for ascending order and 'desc' for descending order.",
     )
+    model_config = ConfigDict(extra="forbid")  # Forbid extra fields not defined here
 
 
 class FileUpdate(BaseModel):

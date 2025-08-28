@@ -1,4 +1,3 @@
-import logging
 import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status, HTTPException
@@ -9,9 +8,9 @@ from app.core.config import settings, Evironments
 from app.api import files as files_api
 from app.api import batches as batches_api
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
+from app.core.logging_config import get_logger
 
-
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @asynccontextmanager

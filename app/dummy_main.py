@@ -1,4 +1,3 @@
-import logging
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -8,10 +7,11 @@ from datetime import datetime, timezone, timedelta
 import time
 import enum
 import random  # For generating varied mock data
+from app.core.logging_config import get_logger
 
 # --- Setup Logging (Basic) ---
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 # --- Mimic Enums and Schemas (Simplified for Mocking) ---
 ## Doc: https://help.openai.com/en/articles/9197833-batch-api-faq
@@ -84,9 +84,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 # --- Jinja2 Filter for Unix Timestamp Formatting ---
-def format_unix_timestamp(
-    value: Optional[int], format_str: str = "%Y-%m-%d %H:%M:%S %Z"
-) -> str:
+def format_unix_timestamp(value: Optional[int], format_str: str = "%Y-%m-%d %H:%M:%S %Z") -> str:
     """Jinja2 filter to convert Unix timestamp (int) to formatted datetime string."""
     if value is None:
         return "N/A"
@@ -113,9 +111,7 @@ def create_mock_data(count: int = 15) -> List[MockBatch]:
         status = random.choice(statuses)
         batch_id = f"batch_{'abc' * (i % 3 + 1)}{i:03d}{random.choice(['x', 'y', 'z'])}"
         input_file = f"file_in_{i:03d}{random.randint(100, 999)}"
-        created_unix = now_unix - random.randint(
-            3600, 86400 * 5
-        )  # Created within last 5 days
+        created_unix = now_unix - random.randint(3600, 86400 * 5)  # Created within last 5 days
         expires_unix = created_unix + 24 * 3600  # Expires 24h after creation
 
         output_file = None
@@ -130,17 +126,13 @@ def create_mock_data(count: int = 15) -> List[MockBatch]:
 
         if status == BatchStatus.COMPLETED:
             output_file = f"file_out_{i:03d}{random.randint(100, 999)}"
-            completed_unix = created_unix + random.randint(
-                600, 18 * 3600
-            )  # Completed within 18 hours
+            completed_unix = created_unix + random.randint(600, 18 * 3600)  # Completed within 18 hours
             # *** FIX START ***
             # Calculate completed count first
             completed_count = random.randint(95, total_requests)
             # Calculate failed count based on completed count
             failed_count = total_requests - completed_count
-            req_counts = RequestCounts(
-                total=total_requests, completed=completed_count, failed=failed_count
-            )
+            req_counts = RequestCounts(total=total_requests, completed=completed_count, failed=failed_count)
             # *** FIX END ***
 
         elif status == BatchStatus.FAILED:
@@ -163,9 +155,7 @@ def create_mock_data(count: int = 15) -> List[MockBatch]:
             completed_count = random.randint(0, 80)
             # Calculate failed count based on completed count
             failed_count = total_requests - completed_count
-            req_counts = RequestCounts(
-                total=total_requests, completed=completed_count, failed=failed_count
-            )
+            req_counts = RequestCounts(total=total_requests, completed=completed_count, failed=failed_count)
             # *** FIX END ***
 
         elif status == BatchStatus.CANCELLED:
@@ -182,9 +172,7 @@ def create_mock_data(count: int = 15) -> List[MockBatch]:
             # Assume a small number of failures even while in progress
             failed_count = random.randint(0, 5)
             # Create RequestCounts object
-            req_counts = RequestCounts(
-                total=total_requests, completed=completed_count, failed=failed_count
-            )
+            req_counts = RequestCounts(total=total_requests, completed=completed_count, failed=failed_count)
             # *** FIX END ***
 
         mock_batches.append(
