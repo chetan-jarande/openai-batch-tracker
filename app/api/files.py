@@ -1,7 +1,6 @@
-import logging
-from typing import List, Optional, Any, AsyncGenerator
+from typing import Any, AsyncGenerator
 from pathlib import Path
-
+from openai.types import FileDeleted
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -30,9 +29,10 @@ from openai import HttpxBinaryResponseContent
 
 from app.utils.deps import OpenAIClient
 from app.schemas import file as file_schema
-from app.schemas import common as common_schema
+from app.core.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -47,7 +47,7 @@ router = APIRouter()
     response_model=file_schema.OpenAIFileObjectSchema,
     status_code=status.HTTP_201_CREATED,
     summary="Upload File to OpenAI",
-    description="Uploads a file to OpenAI <br/>More details in Doc: https://platform.openai.com/docs/api-reference/files/create",
+    description="Uploads a file to OpenAI<br/>More details in Doc: https://platform.openai.com/docs/api-reference/files/create",
 )
 def upload_file_to_openai(
     client: OpenAIClient,
@@ -124,14 +124,18 @@ def upload_file_to_openai(
 
 @router.get(
     "/openai/list",
-    response_model=List[file_schema.OpenAIFileObjectSchema],
+    response_model=list[file_schema.OpenAIFileObjectSchema],
+    status_code=status.HTTP_200_OK,
     summary="List Files from OpenAI Account",
-    description="Retrieves a list of files directly from the user's OpenAI account. Supports pagination.",
+    description=(
+        "Retrieves a list of files directly from the user's OpenAI account. Supports pagination.</br>"
+        "See the [OpenAI List File API docs](https://platform.openai.com/docs/api-reference/files/list) for details."
+    ),
 )
 def list_files_from_openai(
     params: file_schema.OpenAIFileListRequestParams,
     client: OpenAIClient,
-) -> List[file_schema.OpenAIFileObjectSchema]:
+) -> list[file_schema.OpenAIFileObjectSchema]:
     """
     Lists files directly from the OpenAI account associated with the API key.
     Query parameters are now encapsulated in the `params` model.
@@ -160,11 +164,7 @@ def list_files_from_openai(
         # The OpenAI SDK v1.x returns a SyncPage[FileObject] which can be iterated.
         # Each item in `openai_files_list.data` is a `FileObject`.
 
-        response_data = [
-            # file_obj.model_dump()  # Directly dump the data if no validation is needed
-            file_schema.OpenAIFileObjectSchema.model_validate(file_obj)
-            for file_obj in openai_files_list_page.data
-        ]
+        response_data = [file_schema.OpenAIFileObjectSchema(**file_obj) for file_obj in openai_files_list_page.data]
         logger.info(f"Retrieved {len(response_data)} files from OpenAI.")
         return response_data
 
@@ -191,12 +191,21 @@ def list_files_from_openai(
 @router.get(
     "/{openai_file_id}",
     response_model=file_schema.OpenAIFileObjectSchema,
+    status_code=status.HTTP_200_OK,
     summary="Retrieve File Details from OpenAI",
-    description="Retrieves details of a specific file from OpenAI using its OpenAI File ID.",
+    description=(
+        "Retrieves details of a specific file from OpenAI using its OpenAI File ID.</br>"
+        "See the [OpenAI Retrieve File API docs](https://platform.openai.com/docs/api-reference/files/retrieve) for details."
+    ),
 )
 def retrieve_file_from_openai(
-    openai_file_id: str,
     client: OpenAIClient,
+    openai_file_id: str = Path(
+        ...,
+        description="The OpenAI File ID of the file to retrieve.",
+        example="file-abc123",
+        min_length=1,
+    ),
 ) -> file_schema.OpenAIFileObjectSchema:
     """
     Retrieves a specific file record from OpenAI by its OpenAI File ID.
@@ -233,27 +242,35 @@ def retrieve_file_from_openai(
 
 @router.delete(
     "/{openai_file_id}",
-    response_model=common_schema.Msg,
-    summary="Delete File from OpenAI and Local Database",
-    description="Deletes a file from OpenAI's servers and then removes its record from the local database.",
+    response_model=FileDeleted,
+    status_code=status.HTTP_200_OK,
+    summary="Delete File from OpenAI",
+    description=(
+        "Deletes a file from OpenAI's servers</br>"
+        "See the [OpenAI Delete File API docs](https://platform.openai.com/docs/api-reference/files/delete) for details."
+    ),
 )
 def delete_openai_file(
-    openai_file_id: str,
     client: OpenAIClient,
-) -> common_schema.Msg:
+    openai_file_id: str = Path(
+        ...,
+        description="The OpenAI File ID of the file to delete.",
+        example="file-abc123",
+        min_length=1,
+    ),
+) -> FileDeleted:
     """
     Deletes a file from both OpenAI and the local database.
 
     1.  Attempts to delete the file from OpenAI using its `openai_file_id`.
     2.  If successful (or if the file is already not found on OpenAI),
-        deletes the corresponding record from the local database.
 
     Args:
         openai_file_id: The OpenAI File ID of the file to delete.
         client: OpenAI API client dependency.
 
     Returns:
-        A `Msg` schema object indicating the result of the operation.
+        A FileDeleted schema object indicating the result of the operation.
 
     Raises:
         HTTPException:
@@ -262,7 +279,6 @@ def delete_openai_file(
     """
     logger.info(f"Attempting to delete file with OpenAI ID: {openai_file_id}")
 
-    # Step 1: Attempt to delete from OpenAI
     try:
         openai_delete_response = client.files.delete(file_id=openai_file_id)
         if openai_delete_response.deleted:
@@ -272,7 +288,7 @@ def delete_openai_file(
             logger.warning(
                 f"OpenAI reported file {openai_file_id} as not deleted, but no error raised. Response: {openai_delete_response}"
             )
-        return JSONResponse(openai_delete_response, status_code=status.HTTP_200_OK)
+        return JSONResponse(openai_delete_response.model_dump(), status_code=status.HTTP_200_OK)
 
     except OpenAINotFoundError:
         logger.warning(f"File {openai_file_id} not found on OpenAI. It might have been already deleted.")
@@ -305,12 +321,21 @@ def delete_openai_file(
 # TODO: Replace this API with v2 API versions
 @router.get(
     "content/v1/{openai_file_id}",
+    status_code=status.HTTP_200_OK,
     summary="Retrieve File Details from OpenAI",
-    description="Retrieves details of a specific file from OpenAI using its OpenAI File ID. returns the file content as JSON.",
+    description=(
+        "Retrieves details of a specific file from OpenAI using its OpenAI File ID. returns the file content as JSON.</br>"
+        "See the [OpenAI Retrieve File Content API docs](https://platform.openai.com/docs/api-reference/files/retrieve-contents) for details."
+    ),
 )
 def retrieve_file_content_from_openai_v1(
-    openai_file_id: str,
     client: OpenAIClient,
+    openai_file_id: str = Path(
+        ...,
+        description="The OpenAI File ID of the file to retrieve.",
+        example="file-abc123",
+        min_length=1,
+    ),
 ) -> dict[str, Any]:
     """
     Retrieves a specific file record from OpenAI by its OpenAI File ID.
@@ -362,13 +387,22 @@ def retrieve_file_content_from_openai_v1(
 @router.get(
     "/content/v2/{openai_file_id}",
     summary="Retrieve File Content or Trigger Download from OpenAI",
-    description="Retrieves file content from OpenAI. If 'download_as' is specified, triggers a file download. "
-    "Otherwise, returns content based on 'action' (JSON, text, bytes).",
+    status_code=status.HTTP_200_OK,
+    description=(
+        "Retrieves file content from OpenAI. If 'download_as' is specified, triggers a file download.</br>"
+        "Otherwise, returns content based on 'action' (JSON, text, bytes).</br>"
+        "See the [OpenAI Retrieve File Content API docs](https://platform.openai.com/docs/api-reference/files/retrieve-contents) for details.",
+    ),
 )
 async def retrieve_file_content_from_openai_v2(
     params: file_schema.FileContentRequestParams,
-    openai_file_id: str,
     client: OpenAIClient,
+    openai_file_id: str = Path(
+        ...,
+        description="The OpenAI File ID of the file to retrieve.",
+        example="file-abc123",
+        min_length=1,
+    ),
 ) -> Any:
     """
     Retrieves file content from OpenAI.
@@ -380,7 +414,7 @@ async def retrieve_file_content_from_openai_v2(
     if params.download_as:
         logger.info(f"Action: Download file as '{params.download_as}' using with_streaming_response.")
 
-        openai_sdk_stream: Optional[OpenAIStream[bytes]] = None
+        openai_sdk_stream: OpenAIStream[bytes] | None = None
         try:
             # Use with_streaming_response for true streaming from OpenAI
             openai_sdk_stream = client.with_streaming_response.files.content(file_id=openai_file_id)
@@ -435,7 +469,7 @@ async def retrieve_file_content_from_openai_v2(
 
     else:  # Not downloading, use existing logic for GET_JSON, GET_TEXT, GET_BYTES
         logger.info(f"Action: {params.action}, fetching full content.")
-        binary_response_obj: Optional[HttpxBinaryResponseContent] = None
+        binary_response_obj: HttpxBinaryResponseContent | None = None
         try:
             binary_response_obj = client.files.content(file_id=openai_file_id)
 

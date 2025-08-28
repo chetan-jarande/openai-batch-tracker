@@ -1,34 +1,16 @@
-import logging
-from typing import List, Optional, Annotated, Any, AsyncGenerator
-from pathlib import Path
-
-from fastapi import (
-    APIRouter,
-    HTTPException,
-    status,
-    Depends,  # TODO: Check if this is needed
-)
-from fastapi.responses import (
-    Response,
-    JSONResponse,
-    PlainTextResponse,
-    StreamingResponse,
-)
-
+from fastapi import APIRouter, HTTPException, status, Path
 from openai._exceptions import (
     APIError,
     APIConnectionError,
     RateLimitError,
     NotFoundError as OpenAINotFoundError,
 )
-from openai import OpenAI, AsyncOpenAI
 
-from openai import HttpxBinaryResponseContent
-from openai.types import Batch as OpenAIBatch
 from app.utils.deps import OpenAIClient
+from app.core.logging_config import get_logger
 from app.schemas import batch as batch_schema
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -46,7 +28,10 @@ router = APIRouter()
     response_model=batch_schema.OpenAIBatchResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create OpenAI Batch",
-    description="Create a new OpenAI batch of requests.",
+    description=(
+        "Create a new OpenAI batch of requests.</br>"
+        "See the [OpenAI Batch API docs](https://platform.openai.com/docs/api-reference/batch/create) for details."
+    ),
 )
 def create_batch(
     batch: batch_schema.OpenAIBatchCreate,
@@ -85,12 +70,18 @@ def create_batch(
 @router.get(
     "/{batch_id}",
     response_model=batch_schema.OpenAIBatchResponse,
+    status_code=status.HTTP_200_OK,
     summary="Retrieve OpenAI Batch Status",
     description="Fetch details of a specific OpenAI batch.",
 )
 def retrieve_batch(
-    batch_id: str,
     openai_client: OpenAIClient,
+    batch_id: str = Path(
+        ...,
+        description="The ID of the OpenAI batch to retrieve.",
+        example="batch-abc123",
+        min_length=1,
+    ),
 ) -> batch_schema.OpenAIBatchResponse:
     """
     Retrieve an OpenAI batch by ID.
@@ -122,12 +113,21 @@ def retrieve_batch(
 @router.post(
     "/{batch_id}/cancel",
     response_model=batch_schema.OpenAIBatchResponse,
+    status_code=status.HTTP_200_OK,
     summary="Cancel OpenAI Batch",
-    description="Cancel an in-progress OpenAI batch.",
+    description=(
+        "Cancel an in-progress OpenAI batch.</br>"
+        "See the [OpenAI Batch API docs](https://platform.openai.com/docs/api-reference/batch/cancel) for details."
+    ),
 )
 def cancel_batch(
-    batch_id: str,
     openai_client: OpenAIClient,
+    batch_id: str = Path(
+        ...,
+        description="The ID of the OpenAI batch to cancel.",
+        example="batch-abc123",
+        min_length=1,
+    ),
 ) -> batch_schema.OpenAIBatchResponse:
     """
     Cancel a running OpenAI batch by ID.
@@ -149,7 +149,7 @@ def cancel_batch(
         message = getattr(e, "error", {}).get("message", str(e))
         raise HTTPException(status_code=status_code, detail=message)
     except Exception as e:
-        logger.exception("Unexpected error in cancel_batch")
+        logger.exception(f"Unexpected error in cancel_batch {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal Server Error",
@@ -159,8 +159,12 @@ def cancel_batch(
 @router.get(
     "/list-batches",
     response_model=batch_schema.ListBatchesResponse,
+    status_code=status.HTTP_200_OK,
     summary="List OpenAI Batches",
-    description="Return a paginated list of your organization’s OpenAI batches.",
+    description=(
+        "Return a paginated list of your organization’s OpenAI batches.</br>"
+        "See the [OpenAI Batch API docs](https://platform.openai.com/docs/api-reference/batch/list) for details."
+    ),
 )
 def list_batches(
     params: batch_schema.ListBatchesRequestParams,
