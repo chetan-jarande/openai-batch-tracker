@@ -1,5 +1,4 @@
 from typing import Any, AsyncGenerator
-from pathlib import Path
 from openai.types import FileDeleted
 from fastapi import (
     APIRouter,
@@ -8,6 +7,7 @@ from fastapi import (
     UploadFile,
     File as FastApiFile,
     Depends,
+    Path,
 )
 from fastapi.responses import (
     Response,
@@ -133,8 +133,8 @@ def upload_file_to_openai(
     ),
 )
 def list_files_from_openai(
-    params: file_schema.OpenAIFileListRequestParams,
     client: OpenAIClient,
+    params: file_schema.OpenAIFileListRequestParams = Depends(),
 ) -> list[file_schema.OpenAIFileObjectSchema]:
     """
     Lists files directly from the OpenAI account associated with the API key.
@@ -391,12 +391,12 @@ def retrieve_file_content_from_openai_v1(
     description=(
         "Retrieves file content from OpenAI. If 'download_as' is specified, triggers a file download.</br>"
         "Otherwise, returns content based on 'action' (JSON, text, bytes).</br>"
-        "See the [OpenAI Retrieve File Content API docs](https://platform.openai.com/docs/api-reference/files/retrieve-contents) for details.",
+        "See the [OpenAI Retrieve File Content API docs](https://platform.openai.com/docs/api-reference/files/retrieve-contents) for details."
     ),
 )
 async def retrieve_file_content_from_openai_v2(
-    params: file_schema.FileContentRequestParams,
     client: OpenAIClient,
+    params: file_schema.FileContentRequestParams = Depends(),
     openai_file_id: str = Path(
         ...,
         description="The OpenAI File ID of the file to retrieve.",

@@ -2,22 +2,45 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, Any, List
 from enum import StrEnum
 
-from openai.types import (
-    Batch as OpenAIBatch,
-)
+from openai.types import Batch as OpenAIBatch
 
 
-# --- Helper Schema for OpenAI Error Object ---
 class OpenAIError(BaseModel):
     """Represents a single error object within the 'errors' list from OpenAI."""
 
-    code: Optional[str] = None
-    message: Optional[str] = None
-    param: Optional[str] = None
-    line: Optional[int] = None
+    code: str = None
+    message: str = None
+    param: str = None
+    line: int = None
 
 
-# --- Helper Schema for OpenAI Request Counts ---
+# --- Schemas for Usage Details ---
+class InputTokensDetails(BaseModel):
+    """A detailed breakdown of the input tokens."""
+
+    cached_tokens: int = Field(..., description="The number of tokens that were retrieved from the cache.")
+
+
+class OutputTokensDetails(BaseModel):
+    """A detailed breakdown of the output tokens."""
+
+    reasoning_tokens: int = Field(..., description="The number of reasoning tokens.")
+
+
+class OpenAIUsage(BaseModel):
+    """
+    Represents token usage details including input tokens, output tokens,
+    a breakdown of output tokens, and the total tokens used.
+    Only populated on batches created after September 7, 2025.
+    """
+
+    input_tokens: int = Field(..., description="The number of input tokens.")
+    input_tokens_details: InputTokensDetails = Field(..., description="A detailed breakdown of the input tokens.")
+    output_tokens: int = Field(..., description="The number of output tokens.")
+    output_tokens_details: OutputTokensDetails = Field(..., description="A detailed breakdown of the output tokens.")
+    total_tokens: int = Field(..., description="The total number of tokens used.")
+
+
 class RequestCounts(BaseModel):
     """Represents the request_counts object from OpenAI."""
 
@@ -55,90 +78,18 @@ class OpenAIBatchStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
-# --- Base Schema ---
-# Contains common fields, mapping closely to the OpenAI Batch object structure
-class BatchBase(BaseModel):
-    """Base Pydantic schema for Batch Request data, aligned with OpenAI API."""
-
-    openai_batch_id: str = Field(
-        ..., description="The unique ID of the batch object (e.g., batch_abc123)."
-    )
-    object_type: str = Field(
-        default="batch", description="The object type, typically 'batch'."
-    )
-    endpoint: str = Field(..., description="The API endpoint used by the batch.")
-    input_file_id: str = Field(
-        ..., description="The ID of the input file for the batch."
-    )
-    completion_window: str = Field(
-        default="24h",
-        description="The time frame within which the batch should be processed.",
-    )
-    status: OpenAIBatchStatus = Field(
-        ..., description="The current status of the batch job."
-    )
-
-    # Optional fields that appear based on status/outcome
-    output_file_id: Optional[str] = Field(
-        None, description="The ID of the file containing the outputs of the batch."
-    )
-    error_file_id: Optional[str] = Field(
-        None, description="The ID of the file containing errors for the batch."
-    )
-    errors: Optional[Dict[str, List[OpenAIError]]] = Field(
-        None,
-        description="Structured errors encountered during processing (adheres to OpenAI spec).",
-    )  # Updated structure
-    request_counts: Optional[RequestCounts] = Field(
-        None, description="Counts for requests within the batch."
-    )
-
-    # Timestamps (Unix epoch seconds)
-    openai_created_at: Optional[int] = Field(
-        None, description="Unix timestamp (seconds) for when the batch was created."
-    )
-    in_progress_at: Optional[int] = Field(
-        None, description="Unix timestamp for when the batch started processing."
-    )
-    expires_at: Optional[int] = Field(
-        None, description="Unix timestamp for when the batch will expire."
-    )
-    finalizing_at: Optional[int] = Field(
-        None, description="Unix timestamp for when the batch started finalizing."
-    )
-    completed_at: Optional[int] = Field(
-        None, description="Unix timestamp for when the batch was completed."
-    )
-    failed_at: Optional[int] = Field(
-        None, description="Unix timestamp for when the batch failed."
-    )
-    cancelled_at: Optional[int] = Field(
-        None, description="Unix timestamp for when the batch was cancelled."
-    )
-
-    # Metadata
-    metadata_: Optional[Dict[str, Any]] = Field(
-        None,
-        alias="metadata",
-        description="Set of key-value pairs attached to the object.",
-    )
-
-    # Pydantic V2 configuration
-    model_config = ConfigDict(
-        populate_by_name=True,  # Allows using 'metadata' alias
-        from_attributes=True,  # Allow creating from ORM model
-    )
-
-
-# --- Schema for Creating a Batch Record ---
-# Fields required when initially registering a batch known to us
 class BatchEndpoint(StrEnum):
-    """Supported OpenAI batch endpoints."""
+    """
+    Supported OpenAI batch endpoints.
+    Available endpoints for batch processing as per
+    [OpenAI documentation](https://platform.openai.com/docs/guides/batch/getting-started#1-prepare-your-batch-file).
+    """
 
     RESPONSES = "/v1/responses"
     CHAT_COMPLETIONS = "/v1/chat/completions"
     EMBEDDINGS = "/v1/embeddings"
     COMPLETIONS = "/v1/completions"
+    MODERATIONS = "/v1/moderations"
 
 
 class OpenAIBatchCreate(BaseModel):
@@ -163,15 +114,11 @@ class OpenAIBatchCreate(BaseModel):
             "<br>The endpoint to be used for all requests in the batch.</br>"
         ),
     )
-    completion_window: str = Field(
-        "24h", description="Time frame within which batch should be processed"
-    )
-    metadata: dict[str, str] | None = Field(
-        None, description="Optional metadata map (max 16 key-value pairs)"
-    )
+    completion_window: str = Field("24h", description="Time frame within which batch should be processed")
+    metadata: dict[str, str] | None = Field(None, description="Optional metadata map (max 16 key-value pairs)")
 
     model_config = ConfigDict(
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "input_file_id": "file-abc123",
                 "endpoint": "/v1/chat/completions",
@@ -190,25 +137,38 @@ class OpenAIBatchResponse(OpenAIBatch):
     Response schema returned by OpenAI when creating a batch.
     """
 
-    id: str
-    object: str
-    endpoint: str
-    errors: list | None
-    input_file_id: str
-    completion_window: str
-    status: OpenAIBatchStatus
-    output_file_id: str | None
-    error_file_id: str | None
-    created_at: int
-    in_progress_at: int | None
-    expires_at: int | None
-    finalizing_at: int | None
-    completed_at: int | None
-    failed_at: int | None
+    id: str = Field(..., description="The unique identifier for the batch.")
+    object: str = Field(default="batch")
+    endpoint: BatchEndpoint = Field(
+        ...,
+        description="The API endpoint used by the batch.  batches are also restricted to a maximum of 50,000 embedding inputs across all requests in the batch.",
+    )
+    errors: Dict[str, List[OpenAIError]] | None = Field(
+        None,
+        description="Structured errors encountered during processing (adheres to OpenAI spec).",
+        examples=[{"data": [], "object": "list"}],
+    )
+    input_file_id: str = Field(..., description="The ID of the input file for the batch.")
+    completion_window: str = Field(
+        default="24h",
+        description="The time frame within which the batch should be processed.",
+    )
+    status: OpenAIBatchStatus = Field(..., description="The current status of the batch.")
+    output_file_id: str | None = Field(None, description="The ID of the file containing the outputs of the batch.")
+    error_file_id: str | None = Field(None, description="The ID of the file containing errors for the batch.")
+    created_at: int | None = Field(None, description="Unix timestamp (seconds) for when the batch was created.")
+    in_progress_at: int | None = Field(None, description="Unix timestamp for when the batch started processing.")
+    expires_at: int | None = Field(None, description="Unix timestamp for when the batch will expire.")
+    finalizing_at: int | None = Field(None, description="Unix timestamp for when the batch started finalizing.")
+    completed_at: int | None = Field(None, description="Unix timestamp for when the batch was completed.")
+    failed_at: int | None = Field(None, description="Unix timestamp for when the batch failed.")
     expired_at: int | None
     cancelling_at: int | None
-    cancelled_at: int | None
-    request_counts: dict
+    cancelled_at: int | None = Field(None, description="Unix timestamp for when the batch was cancelled.")
+    request_counts: RequestCounts = Field(
+        ..., description="The request counts for different statuses within the batch."
+    )
+    usage: OpenAIUsage | None = Field(None, description="Usage statistics for the batch, if available.")
     metadata: dict | None = Field(
         None,
         description=(
@@ -220,12 +180,12 @@ class OpenAIBatchResponse(OpenAIBatch):
 
     model_config = ConfigDict(
         from_attributes=True,
-        json_schema_extra = {
+        json_schema_extra={
             "example": {
                 "id": "batch_abc123",
                 "object": "batch",
                 "endpoint": "/v1/chat/completions",
-                "errors": None,
+                "errors": None,  # or Error details like {"data": [], "object": "list"}
                 "input_file_id": "file-abc123",
                 "completion_window": "24h",
                 "status": "validating",
@@ -240,27 +200,27 @@ class OpenAIBatchResponse(OpenAIBatch):
                 "expired_at": None,
                 "cancelling_at": None,
                 "cancelled_at": None,
-                "request_counts": {"total": 0, "completed": 0, "failed": 0},
+                "request_counts": {"total": 100, "completed": 95, "failed": 5},
+                "usage": {
+                    "input_tokens": 1500,
+                    "input_tokens_details": {"cached_tokens": 1024},
+                    "output_tokens": 500,
+                    "output_tokens_details": {"reasoning_tokens": 300},
+                    "total_tokens": 2000,
+                },
                 "metadata": {
                     "customer_id": "user_123456789",
                     "batch_description": "Nightly eval job",
                 },
             }
-        }
+        },
     )
 
 
-# # --- Schema for Paginated Batch List Response ---
-# class BatchListResponse(BaseModel):
-#     """Schema for returning a list of batches with pagination info."""
-
-#     total: int = Field(..., description="Total number of batch records available.")
-#     batches: List[Batch] = Field(
-#         ..., description="List of batch records for the current page."
-#     )
-
-
 class ListBatchesRequestParams(BaseModel):
+    """Schema for query parameters when listing batches from OpenAI.
+    Link: https://platform.openai.com/docs/api-reference/batch/list"""
+
     after: Optional[str] = Field(
         None,
         description="A cursor for use in pagination. `after` is an object ID that defines your place in the list.",

@@ -1,12 +1,8 @@
 from enum import StrEnum
-from typing import Optional, List, Literal
-from openai.types import (
-    FileListParams,
-    FileObject as OpenAIFileObject,
-)
+from typing import Literal
+from openai.types import FileObject as OpenAIFileObject
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.schemas.common import PaginatedResponse  # For paginated list response
 from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -79,17 +75,26 @@ class FileUploadRequest(BaseModel):
 class OpenAIFileListRequestParams(BaseModel):
     """
     Pydantic model for query parameters when listing files from OpenAI.
+    Inspired from openai.types.FileListParams.
     Based on: https://platform.openai.com/docs/api-reference/files/list
     """
 
-    purpose: Optional[str] = Field(None, description="Only return files with the given purpose.")
+    purpose: OpenAIFilePurpose | None = Field(
+        None,
+        description="Only return files with the given purpose.",
+        examples=[
+            OpenAIFilePurpose.BATCH,
+            OpenAIFilePurpose.FINE_TUNE,
+            OpenAIFilePurpose.ASSISTANTS,
+        ],
+    )
     limit: int = Field(
         50,  # Default value for OpenAI Files list is 10000
         description="A limit on the number of objects to be returned. Limit can range between 1 and 10000, and the default is 50.",
         ge=1,
         le=10000,
     )
-    after: Optional[str] = Field(
+    after: str | None = Field(
         None,
         description=(
             "Identifier for the last file from the previous pagination request.<br/>"
@@ -103,22 +108,6 @@ class OpenAIFileListRequestParams(BaseModel):
         description="Sort order by the 'created_at' timestamp of the objects. 'asc' for ascending order and 'desc' for descending order.",
     )
     model_config = ConfigDict(extra="forbid")  # Forbid extra fields not defined here
-
-
-class FileUpdate(BaseModel):
-    """
-    Schema for updating an existing file record in our database.
-    Allows partial updates, so all fields are optional.
-    """
-
-    openai_file_id: Optional[str] = None
-    filename: Optional[str] = None
-    bytes_size: Optional[int] = Field(None, ge=0)
-    purpose: Optional[str] = None
-    status: Optional[str] = None
-    status_details: Optional[str] = None
-    openai_created_at: Optional[int] = None
-    model_config = ConfigDict(extra="forbid")  # Forbid extra fields during update
 
 
 # --- Enum for File Content Actions ---
@@ -149,7 +138,7 @@ class FileContentRequestParams(BaseModel):
         ),
         examples=[FileContentAction.GET_BYTES, FileContentAction.GET_JSON, FileContentAction.GET_TEXT],
     )
-    download_as: Optional[str] = Field(
+    download_as: str | None = Field(
         default=None,
         description=(
             "If provided, the file content will be streamed as a download with this filename. "
@@ -158,7 +147,6 @@ class FileContentRequestParams(BaseModel):
     )
 
 
-# --- Example Usage ---
 # # Testing the schemas
 if __name__ == "__main__":
     logger.info("Testing file schemas...")
@@ -201,13 +189,5 @@ if __name__ == "__main__":
         logger.info(f"OpenAIFileListRequestParams (defaults) valid: {default_list_params.model_dump_json(indent=2)}")
     except Exception as e:
         logger.error(f"OpenAIFileListRequestParams validation error: {e}")
-
-    # Test FileUpdate schema
-    file_update_data = {"status": "error", "status_details": "Processing failed."}
-    try:
-        update_file = FileUpdate(**file_update_data)
-        logger.info(f"FileUpdate valid: {update_file.model_dump_json(indent=2)}")
-    except Exception as e:
-        logger.error(f"FileUpdate validation error: {e}")
 
     logger.info("File schemas test complete.")
