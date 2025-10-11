@@ -26,6 +26,7 @@ dependencies = [
     "openai>=1.97.1",
     # For multipart form data (file uploads)
     "python-multipart>=0.0.9",
+    "uv>=0.2.11",
 ]
 
 [project.optional-dependencies]

@@ -14,7 +14,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Upgrade pip in the virtual environment
-RUN pip install --upgrade pip
+RUN pip install --upgrade pip uv
 
 # Copy only the pyproject.toml file to leverage Docker cache
 COPY pyproject.toml .
@@ -22,7 +22,7 @@ COPY README.md .
 
 # Install all dependencies from pyproject.toml into the virtual environment
 # For a pure production build, you might omit the [dev] part.
-RUN pip install --no-cache-dir .[dev]
+RUN uv pip install --no-cache-dir .[dev]
 
 # Copy the rest of the application source code
 COPY ./app /app/app
