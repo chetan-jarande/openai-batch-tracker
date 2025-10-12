@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "OpenAI-Batch-Tracker"
+version = "0.1.0"
+description = "Provides a FastAPI application for tracking OpenAI batch processing tasks."
+authors = [
+  { name="Chetan Jarande", email="chetan.legacy@myworld.com" },
+]
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    # Core FastAPI framework
+    "fastapi>=0.115.12",
+    # ASGI server for FastAPI
+    "uvicorn>=0.34.2",
+    # Pydantic for data validation
+    "pydantic>=2.11.3",
+    "pydantic-settings>=2.0.0",
+    # For HTML templating
+    "jinja2>=3.1.6",
+    # OpenAI client
+    "openai>=1.97.1",
+    # For multipart form data (file uploads)
+    "python-multipart>=0.0.9",
+    "uv>=0.2.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.5.0",
+    "mypy>=1.10.0",
+]
+
+[tool.hatch.build.targets.wheel]
+# Adjust 'app' to your source directory name if it's different.
+# This tells Hatch what to include in the final package.
+packages = ["app/"]
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 120

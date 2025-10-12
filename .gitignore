@@ -179,6 +179,3 @@ cython_debug/
 # Log files
 logs/
 *.log
-
-# Docker cache / data (if needed)
-# postgres_data/ # Be careful if you want to keep DB data locally

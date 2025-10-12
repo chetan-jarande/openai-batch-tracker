@@ -1,70 +1,53 @@
-version: '3.8' # Specify docker-compose version
+version: "3.8"
 
 services:
-  # FastAPI Application Service
-  app:
-    build: . # Build the image from the Dockerfile in the current directory
-    container_name: batch_tracker_app
-    # Environment variables for the FastAPI application
-    # It's best practice to use a .env file for sensitive data like passwords
+  # --- Production Service ---
+  app-prod:
+    profiles:
+      - prod
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: batch_tracker_app_prod
     env_file:
-      - .env # Load variables from .env file in the same directory
+      - .env
     environment:
-      # Example: Override or set additional env vars if needed
-      # LOG_LEVEL: DEBUG
-      # These will be overridden by .env file if present there
-      DATABASE_URL: ${DATABASE_URL:-postgresql://user:password@db:5432/batch_tracker_db}
-      LOG_FILE_PATH: ${LOG_FILE_PATH:-logs/app.log} # Log path inside the container
+      - CONF_ENV=prod
     volumes:
-      # Mount the application code for development (optional, remove for production build)
-      # - ./app:/app/app
       # Mount a volume for persistent logs
       - app_logs:/app/logs
     ports:
-      - "8000:8000" # Map host port 8000 to container port 8000
-    depends_on:
-      db:
-        condition: service_healthy # Wait for the database to be healthy before starting app
+      - "8000:8000"
     networks:
-      - batch_tracker_network # Connect to the custom network
+      - batch_tracker_network
 
-  # PostgreSQL Database Service
-  db:
-    image: postgres:15 # Use an official PostgreSQL image (choose version)
-    container_name: batch_tracker_db
+  # --- Development Service ---
+  app-dev:
+    profiles:
+      - dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: batch_tracker_app_dev
     env_file:
-      - .env # Load variables from .env file
+      - .env
     environment:
-      # These variables configure the PostgreSQL container
-      # They MUST match the user, password, and db name in DATABASE_URL
-      # Use values from .env file or provide defaults
-      POSTGRES_USER: ${POSTGRES_USER:-user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
-      POSTGRES_DB: ${POSTGRES_DB:-batch_tracker_db}
+      - CONF_ENV=local # This will trigger the reload logic in your main.py
     volumes:
-      - postgres_data:/var/lib/postgresql/data # Mount a volume for persistent database data
+      # Mount local source code for live-reloading
+      - ./app:/app/app
+      - app_logs:/app/logs
     ports:
-      - "5433:5432" # Optional: Map host port 5433 to container port 5432 for external access (e.g., DB client)
-                    # Be cautious exposing DB ports directly.
+      - "8001:8000" # Use a different host port to avoid conflicts
     networks:
-      - batch_tracker_network # Connect to the custom network
-    healthcheck:
-      # Check if the database is ready to accept connections
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-batch_tracker_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s # Give the DB time to start up initially
+      - batch_tracker_network
 
 # Define named volumes for persistent data
 volumes:
-  postgres_data:
-    driver: local # Use the local driver for storing data on the host machine
   app_logs:
-    driver: local # Use the local driver for storing log files
+    driver: local
 
-# Define a custom network for services to communicate
+# Define a custom network for the services
 networks:
   batch_tracker_network:
-    driver: bridge # Use the default bridge driver
-
+    driver: bridge

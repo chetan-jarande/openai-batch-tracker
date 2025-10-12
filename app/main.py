@@ -1,23 +1,16 @@
-import logging
+import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware # Optional: For CORS
-from app.core.config import get_settings, Settings
-from app.api.api_v1 import api_router_v1
+from fastapi.middleware.cors import CORSMiddleware  # Optional: For CORS
+from app.core.config import settings, Evironments
+from app.api import files as files_api
+from app.api import batches as batches_api
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
-from app.db.session import check_db_connection
+from app.core.logging_config import get_logger
 
-
-try:
-    logger = logging.getLogger(__name__)
-    settings: Settings = get_settings()
-except Exception as e:
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    logger.error(f"Critical error during logging setup: {e}", exc_info=True)
-
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -29,7 +22,10 @@ async def lifespan(app: FastAPI):
     """
     logger.info("Application lifespan: Initiating startup sequence...")
     try:
-        # Run all startup tasks
+        logger.info(
+            f"Application settings loaded successfully for project: {settings.PROJECT_NAME}",
+            extra=settings.model_dump(),
+        )
         run_startup_logic()
         logger.info("Application lifespan: Startup sequence completed successfully.")
         # This is where the application will run until shutdown.
@@ -40,7 +36,7 @@ async def lifespan(app: FastAPI):
         logger.exception(f"Application lifespan: CRITICAL error during startup: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Application failed to initialize critical services: {str(e)}"
+            detail=f"Application failed to initialize critical services: {str(e)}",
         ) from e
     finally:
         # This block executes regardless of whether an exception occurred in the try block or during app execution.
@@ -51,13 +47,10 @@ async def lifespan(app: FastAPI):
 
 # --- FastAPI Application Instance ---
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    # docs_url=f"{settings.API_V1_STR}/docs",
-    # redoc_url=f"{settings.API_V1_STR}/redoc",
+    title="OpenAI Batch Tracker API",
     version="0.1.0",
     description="API for tracking OpenAI Batch API jobs and managing associated files.",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # --- Middleware ---
@@ -83,7 +76,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     for error in exc.errors():
         field = " -> ".join(str(loc) for loc in error["loc"])
         message = error["msg"]
-        error_messages.append({ "field": field, "message": message, "type": error["type"]})
+        error_messages.append(
+            {
+                "field": field,
+                "message": message,
+                "type": error["type"],
+            }
+        )
     logger.warning(f"Request validation error: {exc.errors()} for request: {request.method} {request.url}")
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -92,19 +91,21 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 # --- API Routers ---
-app.include_router(api_router_v1, prefix=settings.API_V1_STR)
-logger.info(f"Included API v1 router with global prefix: '{settings.API_V1_STR}'.")
+
+app.include_router(files_api.router, prefix="/files", tags=["Files"])
+
+app.include_router(batches_api.router, prefix="/batches", tags=["Batches"])
 
 
 # --- Root Endpoint ---
 @app.get("/", tags=["Root"])
 async def read_root():
-    logger.info("Root endpoint '/' accessed.")
     return {
-        "message": f"Welcome to {settings.PROJECT_NAME}",
-        "status": "API is running",
-        "documentation_v1": f"{settings.API_V1_STR}/docs",
-        "project_version": app.version
+        "message": "Welcome to OpenAI Batch Tracker API!",
+        "project_version": app.version,
+        "documentation": "/docs",
+        "apis": ["/files", "/batches"],
+        "environment": settings.CONF_ENV,
     }
 
 
@@ -121,31 +122,22 @@ def service_status_check():
     """
     logger.info("Health check endpoint '/status' accessed.")
 
-    db_status_ok = check_db_connection()
-
     response_content = {
         "service_status": "ok",
-        "database_status": "ok" if db_status_ok else "error"
     }
 
-    # Determine overall HTTP status code based on dependencies
-    # If DB is critical, the service might be considered unhealthy if DB is down.
-    http_status_code = status.HTTP_200_OK if db_status_ok else status.HTTP_503_SERVICE_UNAVAILABLE
-
-    if not db_status_ok:
-        logger.warning("Database connectivity check failed during health check.")
-
-    return JSONResponse(content=response_content, status_code=http_status_code)
+    return JSONResponse(content=response_content, status_code=status.HTTP_200_OK)
 
 
-# --- Main execution (for Uvicorn) ---
 if __name__ == "__main__":
-    import uvicorn
-    logger.info("Starting application directly using Uvicorn (for development/debugging)...")
+    port = settings.SERVER_PORT
+    should_reload = True if settings.CONF_ENV == Evironments.LOCAL else False
+    logger.info("For Env: %s, starting app on port %d with reload=%s", settings.CONF_ENV, port, should_reload)
+
     uvicorn.run(
-        "app.main:app",
+        app="app.main:app",
         host=settings.SERVER_HOST,
-        port=settings.SERVER_PORT,
-        log_level=settings.LOG_LEVEL.lower(),
-        reload=True
+        port=port,
+        reload=should_reload,
+        workers=5,
     )
