@@ -98,6 +98,84 @@ openai-batch-tracker/
     ```
     * This stops and removes the containers. Add `-v` if you also want to remove the named volumes (database data and logs): `docker-compose down -v`
 
+---
+
+## Getting Started: How to Run the Project
+
+This project can be run in three different environments: locally using a virtual environment, or inside Docker for development or production. All workflows are managed via the `Makefile`.
+
+### 1. Running Locally (with `.venv`)
+
+This workflow is for running the application directly on your machine without Docker.
+
+1.  **Setup and Installation:**
+    This command creates a local virtual environment (`.venv`) and installs all necessary dependencies, including development tools.
+    ```bash
+    make dev
+    ```
+
+2.  **Run the Application:**
+    This starts the server using your local virtual environment. It will automatically use your `local` configuration and enable hot-reloading for any code changes.
+    ```bash
+    make run-local
+    ```
+
+### 2. Running with Docker (Development Environment)
+
+This is the recommended workflow for active development. It provides a consistent environment with live-reloading for your code.
+
+1.  **Build the Development Image:**
+    This command builds the `app-dev` Docker image using `Dockerfile.dev`, which includes all your development dependencies.
+    ```bash
+    make docker-build-dev
+    ```
+
+2.  **Start the Development Service:**
+    This starts the container in the background. Your local `./app` directory is mounted into the container, so any changes you make to the code will be reflected instantly.
+    ```bash
+    make docker-up-dev
+    ```
+
+3.  **View Logs (Optional):**
+    To see the application's output and confirm it started correctly, run:
+    ```bash
+    make docker-logs-dev
+    ```
+    *(Press `Ctrl+C` to stop viewing the logs; the container will continue running.)*
+
+    You can access the development server at **[http://localhost:8001/docs](http://localhost:8001/docs)**.
+
+### 3. Running with Docker (Production Environment)
+
+This workflow simulates how your application would run in a production setting. It uses the lean, optimized production image.
+
+1.  **Build the Production Image:**
+    This command builds the `app-prod` Docker image using the multi-stage `Dockerfile`, which contains only production dependencies.
+    ```bash
+    make docker-build
+    ```
+
+2.  **Start the Production Service:**
+    This starts the production container in the background.
+    ```bash
+    make docker-up
+    ```
+
+3.  **View Logs (Optional):**
+    To check the logs for the production service, run:
+    ```bash
+    make docker-logs
+    ```
+
+    You can access the production server at **[http://localhost:8000/docs](http://localhost:8000/docs)**.
+
+### Stopping All Docker Containers
+
+When you are finished, you can stop and remove all containers, networks, and volumes with a single command:
+```bash
+make docker-down
+```
+
 ## Usage
 
 - Doc Batches: https://platform.openai.com/docs/api-reference/batch

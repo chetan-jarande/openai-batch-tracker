@@ -1,21 +1,44 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  # FastAPI Application Service
-  app:
+  # --- Production Service ---
+  app-prod:
+    profiles:
+      - prod
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: batch_tracker_app
+    container_name: batch_tracker_app_prod
     env_file:
       - .env
+    environment:
+      - CONF_ENV=prod
     volumes:
       # Mount a volume for persistent logs
       - app_logs:/app/logs
-      # For development, you can uncomment the next line to live-reload code changes
-      - ./app:/app/app
     ports:
       - "8000:8000"
+    networks:
+      - batch_tracker_network
+
+  # --- Development Service ---
+  app-dev:
+    profiles:
+      - dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: batch_tracker_app_dev
+    env_file:
+      - .env
+    environment:
+      - CONF_ENV=local # This will trigger the reload logic in your main.py
+    volumes:
+      # Mount local source code for live-reloading
+      - ./app:/app/app
+      - app_logs:/app/logs
+    ports:
+      - "8001:8000" # Use a different host port to avoid conflicts
     networks:
       - batch_tracker_network
 
@@ -24,7 +47,7 @@ volumes:
   app_logs:
     driver: local
 
-# Define a custom network for the service
+# Define a custom network for the services
 networks:
   batch_tracker_network:
     driver: bridge
