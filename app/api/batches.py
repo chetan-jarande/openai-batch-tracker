@@ -79,7 +79,7 @@ def retrieve_batch(
     batch_id: str = Path(
         ...,
         description="The ID of the OpenAI batch to retrieve.",
-        example="batch-abc123",
+        examples=["batch-abc123"],
         min_length=1,
     ),
 ) -> batch_schema.OpenAIBatchResponse:
@@ -125,7 +125,7 @@ def cancel_batch(
     batch_id: str = Path(
         ...,
         description="The ID of the OpenAI batch to cancel.",
-        example="batch-abc123",
+        examples=["batch-abc123"],
         min_length=1,
     ),
 ) -> batch_schema.OpenAIBatchResponse:

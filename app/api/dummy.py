@@ -32,9 +32,9 @@ templates.env.filters["unix_ts"] = format_unix_timestamp
 async def read_dummy_batches(request: Request):
     mock_data = create_mock_batches(25)
     return templates.TemplateResponse(
+        request,
         "batches_dashboard.html",
         {
-            "request": request,
             "batches": mock_data,
             "total_count": len(mock_data),
         },
@@ -45,9 +45,9 @@ async def read_dummy_batches(request: Request):
 async def read_dummy_files(request: Request):
     mock_data = create_mock_files(15)
     return templates.TemplateResponse(
+        request,
         "files_dashboard.html",
         {
-            "request": request,
             "files": mock_data,
             "total_count": len(mock_data),
         },

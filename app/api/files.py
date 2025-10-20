@@ -203,7 +203,7 @@ def retrieve_file_from_openai(
     openai_file_id: str = Path(
         ...,
         description="The OpenAI File ID of the file to retrieve.",
-        example="file-abc123",
+        examples=["file-abc123"],
         min_length=1,
     ),
 ) -> file_schema.OpenAIFileObjectSchema:
@@ -255,7 +255,7 @@ def delete_openai_file(
     openai_file_id: str = Path(
         ...,
         description="The OpenAI File ID of the file to delete.",
-        example="file-abc123",
+        examples=["file-abc123"],
         min_length=1,
     ),
 ) -> FileDeleted:
@@ -333,7 +333,7 @@ def retrieve_file_content_from_openai_v1(
     openai_file_id: str = Path(
         ...,
         description="The OpenAI File ID of the file to retrieve.",
-        example="file-abc123",
+        examples=["file-abc123"],
         min_length=1,
     ),
 ) -> dict[str, Any]:
@@ -400,7 +400,7 @@ async def retrieve_file_content_from_openai_v2(
     openai_file_id: str = Path(
         ...,
         description="The OpenAI File ID of the file to retrieve.",
-        example="file-abc123",
+        examples=["file-abc123"],
         min_length=1,
     ),
 ) -> Any:
