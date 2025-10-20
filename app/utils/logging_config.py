@@ -15,7 +15,7 @@ def get_logger(name: str) -> logging.Logger:
 
 if __name__ == "__main__":
     # This block allows testing the logging configuration independently.
-    # To run: python -m app.core.logging_config
+    # To run: python -m app.utils.logging_config
     # (Ensure .env is set up or environment variables are available for get_settings())
 
     # # TODO:

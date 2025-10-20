@@ -4,11 +4,11 @@ from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
-from app.core.config import settings, Evironments
+from app.utils.config import settings, Evironments
 from app.api import files as files_api
 from app.api import batches as batches_api
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
-from app.core.logging_config import get_logger
+from app.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 

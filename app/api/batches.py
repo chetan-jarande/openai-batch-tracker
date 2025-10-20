@@ -7,7 +7,7 @@ from openai._exceptions import (
 )
 
 from app.utils.deps import OpenAIClient
-from app.core.logging_config import get_logger
+from app.utils.logging_config import get_logger
 from app.schemas import batch as batch_schema
 
 logger = get_logger(__name__)

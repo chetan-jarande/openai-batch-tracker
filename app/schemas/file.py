@@ -3,7 +3,7 @@ from typing import Literal
 from openai.types import FileObject as OpenAIFileObject
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.core.logging_config import get_logger
+from app.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 

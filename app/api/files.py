@@ -29,7 +29,7 @@ from openai import HttpxBinaryResponseContent
 
 from app.utils.deps import OpenAIClient
 from app.schemas import file as file_schema
-from app.core.logging_config import get_logger
+from app.utils.logging_config import get_logger
 
 
 logger = get_logger(__name__)
