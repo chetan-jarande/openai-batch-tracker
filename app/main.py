@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware  # Optional: For CORS
+from fastapi.templating import Jinja2Templates
 from app.core.config import settings, Evironments
 from app.api import files as files_api
 from app.api import batches as batches_api
@@ -45,6 +45,9 @@ async def lifespan(app: FastAPI):
         logger.info("Application lifespan: Shutdown sequence completed.")
 
 
+templates = Jinja2Templates(directory="app/templates")
+
+
 # --- FastAPI Application Instance ---
 app = FastAPI(
     title="OpenAI Batch Tracker API",
@@ -52,21 +55,6 @@ app = FastAPI(
     description="API for tracking OpenAI Batch API jobs and managing associated files.",
     lifespan=lifespan,
 )
-
-# --- Middleware ---
-# Example: CORS (Cross-Origin Resource Sharing)
-# origins = [
-#     "http://localhost",
-#     "http://localhost:3000",
-# ]
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=origins,
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-# logger.info(f"CORS middleware configured for origins: {origins}")
 
 
 # --- Custom Exception Handlers ---
@@ -95,6 +83,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 app.include_router(files_api.router, prefix="/files", tags=["Files"])
 
 app.include_router(batches_api.router, prefix="/batches", tags=["Batches"])
+
+if settings.CONF_ENV == Evironments.LOCAL:
+    from app.api import dummy as dummy_api
+
+    app.include_router(dummy_api.router, prefix="/dummy", tags=["Dummy Endpoints"])
+    logger.info("Running in LOCAL environment - included dummy endpoints.")
 
 
 # --- Root Endpoint ---
