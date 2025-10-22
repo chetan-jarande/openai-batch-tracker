@@ -16,7 +16,9 @@ templates = Jinja2Templates(directory="app/templates")
 PROJECT_ROOT = find_project_root()
 DOCS_DIRECTORY = PROJECT_ROOT / "docs"
 LICENSE_FILENAME = "LICENSE"
-DEFAULT_FILES = [LICENSE_FILENAME]
+README_FILENAME = "README.md"
+DEFAULT_FILES = [LICENSE_FILENAME, README_FILENAME]
+MARKDOWN_EXTRAS = ["fenced-code-blocks", "tables", "header-ids"]
 
 
 @router.get(
@@ -31,8 +33,8 @@ async def list_docs(request: Request):
     Serves a page that lists all available Markdown documents.
 
     This endpoint scans the project's `/docs` directory for `.md` files
-    and also includes a static entry for the `LICENSE` file, presenting them
-    as a list of links for the user to view.
+    and also includes static entries for the `LICENSE` and `README.md` files,
+    presenting them as a list of links for the user to view.
     """
     try:
         # Use pathlib to iterate and filter files
@@ -72,16 +74,25 @@ async def get_doc(request: Request, filename: str):
         )
 
     try:
-        if filename == LICENSE_FILENAME:
+        if filename in [LICENSE_FILENAME, README_FILENAME]:
             filepath = PROJECT_ROOT / filename
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
-            return templates.TemplateResponse(request, "license.html", {"content": content})
+
+            if filename.endswith(".md"):
+                content_html = markdown2.markdown(content, extras=MARKDOWN_EXTRAS)
+                return templates.TemplateResponse(
+                    request,
+                    "docs_viewer_detail.html",
+                    {"title": filename, "content": content_html},
+                )
+            else:
+                return templates.TemplateResponse(request, "license.html", {"content": content})
         else:
             filepath = DOCS_DIRECTORY / filename
             with open(filepath, "r", encoding="utf-8") as f:
                 content_md = f.read()
-            content_html = markdown2.markdown(content_md, extras=["fenced-code-blocks", "tables", "header-ids"])
+            content_html = markdown2.markdown(content_md, extras=MARKDOWN_EXTRAS)
             return templates.TemplateResponse(
                 request,
                 "docs_viewer_detail.html",
