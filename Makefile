@@ -27,8 +27,11 @@ deps: venv
 dev: venv
 	"$(VENV_ROOT)/bin/pip" install -e '.[dev]'
 
-test: dev
+test-local: dev
 	"$(VENV_ROOT)/bin/pytest" -vvv
+
+test:
+	docker-compose -p $(PROJECT_NAME) --profile dev exec app-dev pytest -vvv
 
 build: venv
 	"$(VENV_ROOT)/bin/pip" install --upgrade build

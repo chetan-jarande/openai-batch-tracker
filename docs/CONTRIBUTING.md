@@ -31,7 +31,7 @@ Before you begin, ensure you have the following installed:
 
 ## Local Development Setup
 
-The primary guide for setting up and running the project (both with Docker and locally) is the main **[README.md](../README.md)** file. Please follow the instructions there to get your environment up and running.
+The primary guide for setting up and running the project (both with Docker and locally) is the main **[README.md](README.md)** file. Please follow the instructions there to get your environment up and running.
 
 This guide will focus on the contribution workflow *after* your environment is set up.
 

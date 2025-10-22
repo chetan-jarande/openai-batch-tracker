@@ -2,27 +2,17 @@ from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from typing import List
-from datetime import datetime, timezone
 
 from app.schemas.batch import OpenAIBatchResponse
 from app.schemas.file import OpenAIFileObjectSchema
-from tests.utils.mock_data import create_mock_batches, create_mock_files
+from app.utils.common import format_unix_timestamp
+from app.utils.mock_data import create_mock_batches, create_mock_files
 
 router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
 templates = Jinja2Templates(directory="app/templates")
-
-
-def format_unix_timestamp(value: int, format_str: str = "%Y-%m-%d %H:%M:%S %Z") -> str:
-    if value is None:
-        return "N/A"
-    try:
-        dt_object = datetime.fromtimestamp(value, tz=timezone.utc)
-        return dt_object.strftime(format_str)
-    except (TypeError, ValueError) as e:
-        return f"Invalid Timestamp: {value}: {str(e)}"
 
 
 templates.env.filters["unix_ts"] = format_unix_timestamp

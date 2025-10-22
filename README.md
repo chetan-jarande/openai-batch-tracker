@@ -16,11 +16,14 @@ An advanced FastAPI application designed to track, monitor, and manage OpenAI ba
 
 - **Docker & Docker Compose:** Required for running the application in a containerized environment.
   - [Install Docker](https://docs.docker.com/get-docker/)
+
 - **Pyenv**
   - [Pyenv](https://github.com/pyenv/pyenv.git)
   - Install `pyenv` using the commands below.
     <details>
-    <summary>Click to see installation commands</summary>
+    <summary>
+      Click to see installation commands
+    </summary>
 
     ```bash
     git clone https://github.com/pyenv/pyenv.git ~/.pyenv
@@ -29,7 +32,9 @@ An advanced FastAPI application designed to track, monitor, and manage OpenAI ba
     echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n eval "$(pyenv init -)"\nfi' >> ~/.bashrc
     exec "$SHELL"
     ```
+
     </details>
+
 - **OpenAI Documentation:** Familiarity with the OpenAI Batch API is recommended.
   - [OpenAI Batch API Docs](https://platform.openai.com/docs/api-reference/batch)
   - [OpenAI Files API Docs](https://platform.openai.com/docs/api-reference/files)
@@ -55,20 +60,22 @@ This method is for running the application directly on your machine without Dock
     ```bash
     cp .env.example .env
     ```
-    Now, edit the `.env` file to include your `OPENAI_API_KEY` and any other necessary settings.
 
+    Now, edit the `.env` file to include your `OPENAI_API_KEY` and any other necessary settings.
 
 ### 2. Docker-Based Development
 
 This is the recommended approach for a consistent and isolated development environment.
 
 1. **Build and Start the Services:**
-    These commands will build the necessary Docker images and start the development containers in the background.
+    - These commands will build the necessary Docker images and start the development containers in the background.
 
     ```bash
     make docker-build-dev
     make docker-up-dev
     ```
+
+    - Refer other commands to know more about prod development and env.
 
 ## How to Start the Service
 
@@ -78,7 +85,11 @@ This is the recommended approach for a consistent and isolated development envir
     make run-local
     ```
 
-- **If running with Docker:** The service is already running after `make docker-up-dev`. You can view logs with `make docker-logs-dev`.
+  - This will start the server at 8000 port.
+
+- **If running with Docker:**
+  - The service is already running after `make docker-up-dev`. You can view logs with `make docker-logs-dev`.
+  - This will start the server at 8001 port.
 
 Once the service is running, visit **[http://localhost:8000](http://localhost:8000)**. The homepage will guide you to all available resources, including API documentation and dashboards.
 
@@ -106,4 +117,3 @@ This project is governed by our **[Code of Conduct](CODE_OF_CONDUCT.md)**. By pa
 ## Contact & Thank You
 
 Thank you for your interest in the OpenAI Batch Tracker. If you have any questions, feel free to open an issue on GitHub. We look forward to your contributions!
-

@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y make --no-install-recommends && rm -rf 
 # Copy files required for package installation
 COPY pyproject.toml .
 COPY README.md .
+COPY LICENSE .
 COPY Makefile .
 
 # Install all dependencies, including the [dev] extras

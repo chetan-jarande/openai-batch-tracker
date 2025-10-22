@@ -1,4 +1,6 @@
+from datetime import datetime, timezone
 from pathlib import Path
+
 from app.utils.logging_config import get_logger
 
 
@@ -26,3 +28,14 @@ def find_project_root(marker: str = "pyproject.toml") -> Path:
             logger.debug(f"Found project root at: {parent}")
             return parent
     raise FileNotFoundError(f"Project root marker '{marker}' not found.")
+
+
+def format_unix_timestamp(value: int, format_str: str = "%Y-%m-%d %H:%M:%S %Z") -> str:
+    if value is None:
+        return "N/A"
+    try:
+        dt_object = datetime.fromtimestamp(value, tz=timezone.utc)
+        return dt_object.strftime(format_str)
+    except (TypeError, ValueError) as e:
+        logger.error(f"Error formatting timestamp {value}: {e}")
+        return f"Invalid Timestamp: {value}: {str(e)}"

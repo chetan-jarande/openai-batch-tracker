@@ -25,6 +25,8 @@ RUN uv pip install --no-cache-dir .
 
 # Copy the application source code
 COPY ./app /app/app
+COPY ./docs /app/docs
+COPY ./app/static /app/app/static
 COPY ./app/templates /app/templates
 
 
@@ -50,9 +52,13 @@ COPY --from=builder /opt/venv /opt/venv
 
 # Copy the application code from the builder stage
 COPY --from=builder /app/app /app/app
+COPY --from=builder /app/docs /app/docs
+COPY --from=builder /app/app/static /app/app/static
 COPY --from=builder /app/templates /app/templates
 
 # Copy the Makefile from the current directory
+COPY pyproject.toml .
+COPY README.md .
 COPY Makefile .
 
 # Change ownership of the app directory
