@@ -27,6 +27,7 @@ dependencies = [
     # For multipart form data (file uploads)
     "python-multipart>=0.0.9",
     "uv>=0.2.11",
+    "markdown2>=2.4.13",
 ]
 
 [project.optional-dependencies]

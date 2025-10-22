@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.utils.config import settings, Evironments
 from app.api import files as files_api
 from app.api import batches as batches_api
+from app.api import docs as docs_api
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
 from app.utils.logging_config import get_logger
 
@@ -84,8 +85,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # --- API Routers ---
 
 app.include_router(files_api.router, prefix="/files", tags=["Files"])
-
 app.include_router(batches_api.router, prefix="/batches", tags=["Batches"])
+app.include_router(docs_api.router, prefix="/docs-viewer", tags=["Documentation"])
 
 if settings.CONF_ENV == Evironments.LOCAL:
     from app.api import dummy as dummy_api
@@ -97,7 +98,11 @@ if settings.CONF_ENV == Evironments.LOCAL:
 # --- Root Endpoint ---
 @app.get("/", response_class=HTMLResponse, tags=["Root"])
 async def read_root(request: Request):
-    return templates.TemplateResponse(request, "index.html", {"request": request})
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {"portfolio_url": settings.PORTFOLIO_URL},
+    )
 
 
 # --- Health Check Endpoint ---
