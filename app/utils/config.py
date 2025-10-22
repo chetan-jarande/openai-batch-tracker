@@ -32,6 +32,10 @@ class Settings(BaseSettings):
         default=Evironments.LOCAL,
         description="Configuration environment",
     )
+    PORTFOLIO_URL: str = Field(
+        default="https://chetan-jarande.vercel.app/",
+        description="Portfolio URL to be displayed on the homepage",
+    )
 
     # Uvicorn server settings (if running from docker, Docker Compose handles this)
     SERVER_HOST: str = "0.0.0.0"

@@ -1,14 +1,24 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const cards = document.querySelectorAll('.card');
+    const tabs = document.querySelectorAll('.tab');
+    const slider = document.querySelector('.tab-slider');
 
-    cards.forEach(card => {
-        card.addEventListener('mousemove', (e) => {
-            const rect = card.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+    function moveSlider(target) {
+        slider.style.width = `${target.offsetWidth}px`;
+        slider.style.transform = `translateX(${target.offsetLeft}px)`;
+    }
 
-            card.style.setProperty('--mouse-x', `${x}px`);
-            card.style.setProperty('--mouse-y', `${y}px`);
-        });
+    tabs.forEach(tab => {
+        tab.addEventListener('mouseenter', () => moveSlider(tab));
     });
+
+    // Reset slider when mouse leaves the tabs container
+    const tabsContainer = document.querySelector('.tabs');
+    tabsContainer.addEventListener('mouseleave', () => {
+        const activeTab = document.querySelector('.tab.active') || tabs[0];
+        moveSlider(activeTab);
+    });
+
+    // Initial position
+    const initialActiveTab = document.querySelector('.tab.active') || tabs[0];
+    moveSlider(initialActiveTab);
 });
