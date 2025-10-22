@@ -2,8 +2,9 @@ import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from app.utils.config import settings, Evironments
 from app.api import files as files_api
 from app.api import batches as batches_api
@@ -56,6 +57,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
 
 # --- Custom Exception Handlers ---
 @app.exception_handler(RequestValidationError)
@@ -92,15 +95,9 @@ if settings.CONF_ENV == Evironments.LOCAL:
 
 
 # --- Root Endpoint ---
-@app.get("/", tags=["Root"])
-async def read_root():
-    return {
-        "message": "Welcome to OpenAI Batch Tracker API!",
-        "project_version": app.version,
-        "documentation": "/docs",
-        "apis": ["/files", "/batches"],
-        "environment": settings.CONF_ENV,
-    }
+@app.get("/", response_class=HTMLResponse, tags=["Root"])
+async def read_root(request: Request):
+    return templates.TemplateResponse(request, "index.html", {"request": request})
 
 
 # --- Health Check Endpoint ---
