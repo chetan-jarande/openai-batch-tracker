@@ -1,6 +1,32 @@
 version: "3.8"
 
 services:
+
+  # --- Development Service ---
+  app-dev:
+    profiles:
+      - dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: batch_tracker_app_dev
+    env_file:
+      - .env
+    environment:
+      - CONF_ENV=dev
+      - SERVER_PORT=8000
+      - PYTHONPATH=/app
+    volumes:
+      # Mount local source code for live-reloading
+      - ./app:/app/app
+      - ./docs:/app/docs
+      - ./tests:/app/tests
+      - app_logs:/app/logs
+    ports:
+      - "8000:8000" # Use a different host port to avoid conflicts
+    networks:
+      - batch_tracker_network
+
   # --- Production Service ---
   app-prod:
     profiles:
@@ -13,11 +39,12 @@ services:
       - .env
     environment:
       - CONF_ENV=prod
+      - SERVER_PORT=8001
     volumes:
       # Mount a volume for persistent logs
       - app_logs:/app/logs
     ports:
-      - "8000:8000"
+      - "8001:8001"
     networks:
       - batch_tracker_network
 
@@ -33,6 +60,7 @@ services:
       - .env
     environment:
       - CONF_ENV=mcp
+      - SERVER_PORT=8002
       - PYTHONPATH=/app
     volumes:
       # Mount local source code for live-reloading untill live reloading is needed for the development with MCP
@@ -41,31 +69,7 @@ services:
       - ./tests:/app/tests
       - app_logs:/app/logs
     ports:
-      - "8002:8000"
-    networks:
-      - batch_tracker_network
-
-  # --- Development Service ---
-  app-dev:
-    profiles:
-      - dev
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    container_name: batch_tracker_app_dev
-    env_file:
-      - .env
-    environment:
-      - CONF_ENV=dev
-      - PYTHONPATH=/app
-    volumes:
-      # Mount local source code for live-reloading
-      - ./app:/app/app
-      - ./docs:/app/docs
-      - ./tests:/app/tests
-      - app_logs:/app/logs
-    ports:
-      - "8001:8000" # Use a different host port to avoid conflicts
+      - "8002:8002"
     networks:
       - batch_tracker_network
 

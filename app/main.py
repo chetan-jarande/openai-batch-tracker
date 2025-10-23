@@ -88,11 +88,11 @@ app.include_router(files_api.router, prefix="/files", tags=["Files"])
 app.include_router(batches_api.router, prefix="/batches", tags=["Batches"])
 app.include_router(docs_api.router, prefix="/docs-viewer", tags=["Documentation"])
 
-if settings.CONF_ENV == Environments.DEV:
+if settings.CONF_ENV in [Environments.DEV, Environments.MCP]:
     from app.api import dummy as dummy_api
 
     app.include_router(dummy_api.router, prefix="/dummy", tags=["Dummy Endpoints"])
-    logger.info("Running in DEV environment - included dummy endpoints.")
+    logger.info("Running in DEV/MCP environment - included dummy endpoints.")
 
 
 # --- Root Endpoint ---
@@ -125,15 +125,63 @@ def service_status_check():
     return JSONResponse(content=response_content, status_code=status.HTTP_200_OK)
 
 
+if settings.CONF_ENV in [Environments.DEV, Environments.MCP]:
+    from app.mcp.server import create_mcp_server
+    from contextlib import asynccontextmanager
+
+    mcp_server = create_mcp_server(app)
+    mcp_app = mcp_server.http_app(path="/mcp")
+
+    @asynccontextmanager
+    async def combined_lifespan(app: FastAPI):
+        """Combined lifespan for FastAPI and MCP apps.
+        Last In, First Out" (LIFO) execution order.
+        - Doc: https://gofastmcp.com/integrations/fastapi#combining-lifespans"""
+        async with lifespan(app):
+            # Run the Startup logic of the FASTAPI app
+
+            # Using the default lifespan of the MCP app
+            async with mcp_app.lifespan(app):
+                # Run the Startup logic of the MCP app
+                # Now the Main application runs here
+                yield
+                # Run the Shutdown logic of the MCP app
+
+            # Runs the Shutdown logic of the FASTAPI app
+
+    combined_app = FastAPI(
+        title="OpenAI Batch Tracker API with MCP",
+        routes=[
+            *mcp_app.routes,
+            *app.routes,
+        ],
+        summary="Model Context Protocol & API",
+        description="MCP & APIs for tracking OpenAI Batch API jobs and managing associated files.",
+        version=app.version,
+        lifespan=combined_lifespan,
+    )
+
+    app_to_run = combined_app
+    app_to_run.mount("/mcp", mcp_app)
+
+else:
+    app_to_run = app
+
+# Doc: https://gofastmcp.com/integrations/fastapi#offering-an-llm-friendly-api
+# Now you have:
+# - Regular API: http://localhost:8000/
+# - LLM-friendly MCP: http://localhost:8000/mcp/
+# Both served from the same FastAPI application!
+
 if __name__ == "__main__":
     port = settings.SERVER_PORT
-    should_reload = True if settings.CONF_ENV == Environments.DEV else False
+    should_reload = settings.CONF_ENV == Environments.DEV
     logger.info("For Env: %s, starting app on port %d with reload=%s", settings.CONF_ENV, port, should_reload)
 
     uvicorn.run(
-        app="app.main:app",
+        app="app.main:app_to_run",
         host=settings.SERVER_HOST,
         port=port,
         reload=should_reload,
-        workers=5,
+        workers=1 if should_reload else 5,
     )

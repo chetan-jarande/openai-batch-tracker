@@ -44,6 +44,12 @@ class Settings(BaseSettings):
         description="Port for the FastAPI server",
     )
 
+    # # MCP settings
+    FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER: bool = Field(
+        default=True,
+        description="Enable the new OpenAPI parser in FastMCP, Doc: https://gofastmcp.com/integrations/fastapi",
+    )
+
     # # OpeanAI settings
     # Use SecretStr to prevent accidental exposure of the API key.
     # Doc: https://docs.pydantic.dev/latest/api/types/#pydantic.types.SecretStr
@@ -98,14 +104,22 @@ def get_settings() -> Settings:
 # For gloabal access within the application
 settings: Settings = get_settings()
 
+MCP_SERVER_URL = f"http://localhost:{settings.SERVER_PORT}/mcp"
+
+
 if __name__ == "__main__":
     try:
         current_settings = get_settings()
-        print("Successfully loaded settings:")
-        print(f"  Project Name: {current_settings.PROJECT_NAME}")
-        print(f"  OpenAI API Key: {current_settings.OPENAI_API_KEY}")
-        print(f"  Log Level: {current_settings.LOG_LEVEL}")
+        logger.info("Successfully loaded settings:")
+        logger.info(f"  Project Name: {current_settings.PROJECT_NAME}")
+        # Log only a part of the key to avoid exposing secrets
+        api_key_display = (
+            f"{current_settings.OPENAI_API_KEY.get_secret_value()[:4]}..."
+            if current_settings.OPENAI_API_KEY
+            else "Not set"
+        )
+        logger.info(f"  OpenAI API Key: {api_key_display}")
     except ValueError as ve:
-        print(f"Configuration Error: {ve}")
+        logger.error(f"Configuration Error: {ve}")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}")

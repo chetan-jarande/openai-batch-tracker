@@ -23,7 +23,7 @@ dependencies = [
     # For HTML templating
     "jinja2>=3.1.6",
     # OpenAI client
-    "openai>=1.97.1",
+    "openai>=1.102.0",
     # For multipart form data (file uploads)
     "python-multipart>=0.0.9",
     "uv>=0.2.11",
@@ -38,6 +38,7 @@ dev = [
     "pytest>=8.0.0",
     "ruff>=0.5.0",
     "mypy>=1.10.0",
+    "anyio>=4.0.0",
 ]
 
 [tool.hatch.build.targets.wheel]
