@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from app.utils.config import settings, Evironments
+from app.utils.config import settings, Environments
 from app.api import files as files_api
 from app.api import batches as batches_api
 from app.api import docs as docs_api
@@ -88,11 +88,11 @@ app.include_router(files_api.router, prefix="/files", tags=["Files"])
 app.include_router(batches_api.router, prefix="/batches", tags=["Batches"])
 app.include_router(docs_api.router, prefix="/docs-viewer", tags=["Documentation"])
 
-if settings.CONF_ENV == Evironments.LOCAL:
+if settings.CONF_ENV == Environments.DEV:
     from app.api import dummy as dummy_api
 
     app.include_router(dummy_api.router, prefix="/dummy", tags=["Dummy Endpoints"])
-    logger.info("Running in LOCAL environment - included dummy endpoints.")
+    logger.info("Running in DEV environment - included dummy endpoints.")
 
 
 # --- Root Endpoint ---
@@ -127,7 +127,7 @@ def service_status_check():
 
 if __name__ == "__main__":
     port = settings.SERVER_PORT
-    should_reload = True if settings.CONF_ENV == Evironments.LOCAL else False
+    should_reload = True if settings.CONF_ENV == Environments.DEV else False
     logger.info("For Env: %s, starting app on port %d with reload=%s", settings.CONF_ENV, port, should_reload)
 
     uvicorn.run(

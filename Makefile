@@ -11,7 +11,7 @@ else
 	PYENV_BIN=pyenv
 endif
 
-export CONF_ENV?=local
+export CONF_ENV?=dev
 
 venv:
 	@echo "Using pyenv from '$(PYENV_BIN)'"
@@ -24,8 +24,11 @@ venv:
 deps: venv
 	"$(VENV_ROOT)/bin/pip" install -e '.'
 
+mcp: venv
+	"$(VENV_ROOT)/bin/pip" install -e '.[mcp]'
+
 dev: venv
-	"$(VENV_ROOT)/bin/pip" install -e '.[dev]'
+	"$(VENV_ROOT)/bin/pip" install -e '.[mcp,dev]'
 
 test-local: dev
 	"$(VENV_ROOT)/bin/pytest" -vvv
@@ -54,6 +57,10 @@ docker-build:
 docker-build-fresh:
 	docker-compose -p $(PROJECT_NAME) --profile prod build --no-cache
 
+# Build the MCP docker image
+docker-build-mcp:
+	docker-compose -p $(PROJECT_NAME) --profile mcp build
+
 # Build the development docker image
 docker-build-dev:
 	docker-compose -p $(PROJECT_NAME) --profile dev build
@@ -61,6 +68,10 @@ docker-build-dev:
 # Start the services in detached mode
 docker-up:
 	docker-compose -p $(PROJECT_NAME) --profile prod up -d
+
+# Start the MCP service in detached mode
+docker-up-mcp:
+	docker-compose -p $(PROJECT_NAME) --profile mcp up -d
 
 # Start the development service in detached mode
 docker-up-dev:
@@ -77,6 +88,10 @@ docker-restart: docker-down docker-up
 docker-logs:
 	docker-compose -p $(PROJECT_NAME) --profile prod logs -f
 
+# View the logs from the MCP service
+docker-logs-mcp:
+	docker-compose -p $(PROJECT_NAME) --profile mcp logs -f
+
 # View the logs from the development service
 docker-logs-dev:
 	docker-compose -p $(PROJECT_NAME) --profile dev logs -f
@@ -85,9 +100,14 @@ docker-logs-dev:
 docker-shell:
 	docker-compose -p $(PROJECT_NAME) --profile prod exec app-prod /bin/bash
 
+# Access a shell inside the running MCP app container
+docker-shell-mcp:
+	docker-compose -p $(PROJECT_NAME) --profile mcp exec app-mcp /bin/bash
+
 # Access a shell inside the running development app container
 docker-shell-dev:
 	docker-compose -p $(PROJECT_NAME) --profile dev exec app-dev /bin/bash
+
 
 # Show this help message
 help:
@@ -107,8 +127,14 @@ help:
 	@echo "  docker-logs-dev     Follow the development service logs"
 	@echo "  docker-shell-dev    Access a shell in the development app container"
 	@echo ""
+	@echo "MCP Commands:"
+	@echo "  docker-build-mcp    Build the MCP Docker image"
+	@echo "  docker-up-mcp       Start the MCP service in the background"
+	@echo "  docker-logs-mcp     Follow the MCP service logs"
+	@echo "  docker-shell-mcp    Access a shell in the MCP app container"
+	@echo ""
 	@echo "Local Commands:"
 	@echo "  dev                 Create a venv and install all dependencies"
 	@echo "  run-local           Run the application locally (uses logic in main.py)"
 
-.PHONY: docker-build docker-build-fresh docker-build-dev docker-up docker-up-dev docker-down docker-restart docker-logs docker-logs-dev docker-shell docker-shell-dev help run run-local
+.PHONY: docker-build docker-build-fresh docker-build-dev docker-up docker-up-dev docker-down docker-restart docker-logs docker-logs-dev docker-shell docker-shell-dev help run run-local docker-build-mcp docker-up-mcp docker-logs-mcp docker-shell-mcp

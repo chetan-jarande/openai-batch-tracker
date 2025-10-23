@@ -8,10 +8,10 @@ from app.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-class Evironments(StrEnum):
-    LOCAL = "local"
-    STAGING = "staging"
+class Environments(StrEnum):
+    DEV = "dev"
     PROD = "prod"
+    MCP = "mcp"
 
 
 class OpenAIMode(StrEnum):
@@ -28,12 +28,12 @@ class Settings(BaseSettings):
     """
 
     PROJECT_NAME: str = "OpenAI Batch Tracker"
-    CONF_ENV: Evironments = Field(
-        default=Evironments.LOCAL,
+    CONF_ENV: Environments = Field(
+        default=Environments.DEV,
         description="Configuration environment",
     )
     PORTFOLIO_URL: str = Field(
-        default="https://chetan-jarande.vercel.app/",
+        default="https://your-portfolio-url.com",
         description="Portfolio URL to be displayed on the homepage",
     )
 
