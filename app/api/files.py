@@ -2,6 +2,8 @@ from typing import Any, AsyncGenerator
 from openai.types import FileDeleted
 from fastapi import (
     APIRouter,
+    Query,
+    Request,
     HTTPException,
     status,
     UploadFile,
@@ -14,7 +16,9 @@ from fastapi.responses import (
     JSONResponse,
     PlainTextResponse,
     StreamingResponse,
+    HTMLResponse,
 )
+from fastapi.templating import Jinja2Templates
 
 from openai._exceptions import (
     APIConnectionError,
@@ -27,14 +31,19 @@ from openai._streaming import (
 )
 from openai import HttpxBinaryResponseContent
 
-from app.utils.deps import OpenAIClient
 from app.schemas import file as file_schema
-from app.core.logging_config import get_logger
+from app.utils.common import format_unix_timestamp
+from app.utils.deps import OpenAIClient
+from app.utils.logging_config import get_logger
 
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+templates = Jinja2Templates(directory="app/templates")
+templates.env.filters["unix_ts"] = format_unix_timestamp
+
 
 # TODO:
 # Future scope:
@@ -123,8 +132,8 @@ def upload_file_to_openai(
 
 
 @router.get(
-    "/openai/list",
-    response_model=list[file_schema.OpenAIFileObjectSchema],
+    "/list",
+    response_model=None,
     status_code=status.HTTP_200_OK,
     summary="List Files from OpenAI Account",
     description=(
@@ -133,9 +142,11 @@ def upload_file_to_openai(
     ),
 )
 def list_files_from_openai(
+    request: Request,
     client: OpenAIClient,
+    view: bool = Query(False, description="If true, returns an HTML dashboard view of the files."),
     params: file_schema.OpenAIFileListRequestParams = Depends(),
-) -> list[file_schema.OpenAIFileObjectSchema]:
+) -> list[file_schema.OpenAIFileObjectSchema] | HTMLResponse:
     """
     Lists files directly from the OpenAI account associated with the API key.
     Query parameters are now encapsulated in the `params` model.
@@ -153,11 +164,12 @@ def list_files_from_openai(
     Note:
         The response is a list of dictionaries directly from the OpenAI client's `FileObject.model_dump()`.
     """
-    logger.info(f"Listing files from OpenAI with params: {params.model_dump()}")
     try:
         # Pass parameters from the Pydantic model to the OpenAI client
         # The `model_dump(exclude_none=True)` ensures only provided params are sent
-        openai_files_list_page = client.files.list(**params.model_dump(exclude_none=True))
+        params = params.model_dump(exclude_none=True)
+        logger.info(f"Listing files from OpenAI with params: {params}")
+        openai_files_list_page = client.files.list(**params)
 
         # Validate and convert each FileObject from OpenAI to our Pydantic schema
         # The OpenAI SDK's FileObject should be compatible if our schema is correct.
@@ -165,7 +177,20 @@ def list_files_from_openai(
         # Each item in `openai_files_list.data` is a `FileObject`.
 
         response_data = [file_schema.OpenAIFileObjectSchema(**file_obj) for file_obj in openai_files_list_page.data]
-        logger.info(f"Retrieved {len(response_data)} files from OpenAI.")
+        file_count = len(response_data)
+        logger.info(f"Retrieved {file_count} files from OpenAI.")
+
+        if view:
+            logger.debug("View mode enabled. Rendering files_dashboard.html")
+            return templates.TemplateResponse(
+                request,
+                "files_dashboard.html",
+                {
+                    "files": response_data,
+                    "total_count": file_count,
+                    "params": params,
+                },
+            )
         return response_data
 
     except (APIConnectionError, RateLimitError) as e:
@@ -203,7 +228,7 @@ def retrieve_file_from_openai(
     openai_file_id: str = Path(
         ...,
         description="The OpenAI File ID of the file to retrieve.",
-        example="file-abc123",
+        examples=["file-abc123"],
         min_length=1,
     ),
 ) -> file_schema.OpenAIFileObjectSchema:
@@ -255,7 +280,7 @@ def delete_openai_file(
     openai_file_id: str = Path(
         ...,
         description="The OpenAI File ID of the file to delete.",
-        example="file-abc123",
+        examples=["file-abc123"],
         min_length=1,
     ),
 ) -> FileDeleted:
@@ -333,7 +358,7 @@ def retrieve_file_content_from_openai_v1(
     openai_file_id: str = Path(
         ...,
         description="The OpenAI File ID of the file to retrieve.",
-        example="file-abc123",
+        examples=["file-abc123"],
         min_length=1,
     ),
 ) -> dict[str, Any]:
@@ -400,7 +425,7 @@ async def retrieve_file_content_from_openai_v2(
     openai_file_id: str = Path(
         ...,
         description="The OpenAI File ID of the file to retrieve.",
-        example="file-abc123",
+        examples=["file-abc123"],
         min_length=1,
     ),
 ) -> Any:

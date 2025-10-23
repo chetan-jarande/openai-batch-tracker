@@ -32,10 +32,13 @@ services:
     env_file:
       - .env
     environment:
-      - CONF_ENV=local # This will trigger the reload logic in your main.py
+      - CONF_ENV=local
+      - PYTHONPATH=/app
     volumes:
       # Mount local source code for live-reloading
       - ./app:/app/app
+      - ./docs:/app/docs
+      - ./tests:/app/tests
       - app_logs:/app/logs
     ports:
       - "8001:8000" # Use a different host port to avoid conflicts

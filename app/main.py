@@ -2,13 +2,15 @@ import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware  # Optional: For CORS
-from app.core.config import settings, Evironments
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from app.utils.config import settings, Evironments
 from app.api import files as files_api
 from app.api import batches as batches_api
+from app.api import docs as docs_api
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
-from app.core.logging_config import get_logger
+from app.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -45,6 +47,9 @@ async def lifespan(app: FastAPI):
         logger.info("Application lifespan: Shutdown sequence completed.")
 
 
+templates = Jinja2Templates(directory="app/templates")
+
+
 # --- FastAPI Application Instance ---
 app = FastAPI(
     title="OpenAI Batch Tracker API",
@@ -53,20 +58,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# --- Middleware ---
-# Example: CORS (Cross-Origin Resource Sharing)
-# origins = [
-#     "http://localhost",
-#     "http://localhost:3000",
-# ]
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=origins,
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-# logger.info(f"CORS middleware configured for origins: {origins}")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 # --- Custom Exception Handlers ---
@@ -93,20 +85,24 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # --- API Routers ---
 
 app.include_router(files_api.router, prefix="/files", tags=["Files"])
-
 app.include_router(batches_api.router, prefix="/batches", tags=["Batches"])
+app.include_router(docs_api.router, prefix="/docs-viewer", tags=["Documentation"])
+
+if settings.CONF_ENV == Evironments.LOCAL:
+    from app.api import dummy as dummy_api
+
+    app.include_router(dummy_api.router, prefix="/dummy", tags=["Dummy Endpoints"])
+    logger.info("Running in LOCAL environment - included dummy endpoints.")
 
 
 # --- Root Endpoint ---
-@app.get("/", tags=["Root"])
-async def read_root():
-    return {
-        "message": "Welcome to OpenAI Batch Tracker API!",
-        "project_version": app.version,
-        "documentation": "/docs",
-        "apis": ["/files", "/batches"],
-        "environment": settings.CONF_ENV,
-    }
+@app.get("/", response_class=HTMLResponse, tags=["Root"])
+async def read_root(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {"portfolio_url": settings.PORTFOLIO_URL},
+    )
 
 
 # --- Health Check Endpoint ---

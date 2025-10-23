@@ -1,257 +1,119 @@
-# openai-batch-tracker
-openai batch processing tracker
+# OpenAI Batch Tracker
+
+An advanced FastAPI application designed to track, monitor, and manage OpenAI batch processing jobs, featuring a modern, interactive dashboard and a full-fledged documentation viewer.
 
 ---
-
-# OpenAI Batch Job Tracker API
-
-A FastAPI application to track and monitor OpenAI batch processing jobs, containerized using Docker and Docker Compose.
 
 ## Features
 
-* **Track Batches:** Store information about submitted OpenAI batch jobs.
-* **Monitor Status:** View the current status of tracked jobs via a web dashboard.
-* **API Endpoints:** RESTful API for creating, reading, and updating batch records.
-* **Database:** Uses PostgreSQL for persistent storage.
-* **Dockerized:** Runs the application and database in Docker containers using Docker Compose.
-* **Logging:** Configured daily rotating file logs.
-
-## Project Structure
-
-Here's the recommended directory layout for this project:
-```
-openai-batch-tracker/
-├── app/                    # Main application source code directory
-│   ├── core/               # Core application logic (config, logging)
-│   │   ├── init.py
-│   │   ├── config.py       # Application settings management
-│   │   └── logging_config.py # Logging setup
-│   ├── crud/               # Database Create, Read, Update, Delete operations
-│   │   ├── init.py
-│   │   └── batch.py        # CRUD functions specific to batch requests
-│   ├── db/                 # Database related code (models, session)
-│   │   ├── init.py
-│   │   ├── models.py       # SQLAlchemy ORM models (e.g., BatchRequest table)
-│   │   └── session.py      # Database engine and session setup
-│   ├── routers/            # API endpoint definitions (FastAPI routers)
-│   │   ├── init.py
-│   │   └── batches.py      # Routes for /batches endpoint and dashboard
-│   ├── schemas/            # Pydantic schemas for data validation and serialization
-│   │   ├── init.py
-│   │   └── batch.py        # Pydantic models for batch data (request/response)
-│   ├── templates/          # HTML templates (rendered by Jinja2)
-│   │   └── dashboard.html  # Template for the web dashboard
-│   └── main.py             # FastAPI application entry point and setup
-│
-├── logs/                   # Directory for log files (created automatically, mapped by volume)
-│   └── app.log             # Example log file (rotates daily)
-│
-├── .env                    # Environment variables (!!! DO NOT COMMIT SECRETS !!!)
-├── .gitignore              # Specifies intentionally untracked files that Git should ignore
-├── Dockerfile              # Instructions to build the FastAPI app Docker image
-├── docker-compose.yml      # Defines and orchestrates Docker services (app, db)
-├── requirements.txt        # Python package dependencies
-└── README.md               # This file - project documentation
-
-```
-
-*(Note: The `logs/` directory and its contents will be created automatically when the application runs inside the container and writes logs. You typically add `logs/` and `.env` to your `.gitignore` file.)*
+- **Modern UI:** An interactive, dark-themed homepage for easy navigation.
+- **Batch & File Dashboards:** Separate, detailed dashboards for visualizing mock batch jobs and files.
+- **Documentation Viewer:** An integrated system to render and view project documentation (`/docs`) and the `LICENSE` file.
+- **Dockerized Environment:** Fully containerized with Docker and managed via a `Makefile` for consistent development and production environments.
+- **Robust API:** A well-documented API for managing batches and files, built with FastAPI.
 
 ## Prerequisites
 
-* Docker: [Install Docker](https://docs.docker.com/get-docker/)
-* Docker Compose: Usually included with Docker Desktop. [Install Docker Compose](https://docs.docker.com/compose/install/)
+- **Docker & Docker Compose:** Required for running the application in a containerized environment.
+  - [Install Docker](https://docs.docker.com/get-docker/)
 
-## Setup and Running
+- **Pyenv**
+  - [Pyenv](https://github.com/pyenv/pyenv.git)
+  - Install `pyenv` using the commands below.
+    <details>
+    <summary>
+      Click to see installation commands
+    </summary>
 
-1.  **Clone the Repository:**
     ```bash
-    git clone <your-repo-url>
-    cd openai-batch-tracker # Or your chosen repo name
+    git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+    echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+    echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n eval "$(pyenv init -)"\nfi' >> ~/.bashrc
+    exec "$SHELL"
     ```
 
-2.  **Create `.env` file:**
-    * Copy the example `.env` content provided or create your own `.env` file in the project root (`openai-batch-tracker/`).
-    * **Important:** Update the `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` variables. Ensure these match the `DATABASE_URL`.
-    * *(Optional)* Add your `OPENAI_API_KEY` if you plan to implement status fetching from OpenAI.
+    </details>
 
-3.  **Create `.gitignore` file:**
-    * Create a file named `.gitignore` in the project root
+- **OpenAI Documentation:** Familiarity with the OpenAI Batch API is recommended.
+  - [OpenAI Batch API Docs](https://platform.openai.com/docs/api-reference/batch)
+  - [OpenAI Files API Docs](https://platform.openai.com/docs/api-reference/files)
 
-4.  **Build and Run with Docker Compose:**
-    * Open a terminal in the project root directory (where `docker-compose.yml` is located).
-    * Run the following command:
-        ```bash
-        docker-compose up --build -d
-        ```
-        * `--build`: Forces Docker to rebuild the application image based on the `Dockerfile`.
-        * `-d`: Runs the containers in detached mode (in the background).
+## Setup & Installation
 
-5.  **Access the Application:**
-    * **API Docs (Swagger UI):** Open your web browser and navigate to [http://localhost:8000/docs](http://localhost:8000/docs)
-    * **Dashboard:** Navigate to [http://localhost:8000/batches/dashboard](http://localhost:8000/batches/dashboard)
-    * **Root:** Navigate to [http://localhost:8000/](http://localhost:8000/)
+This project uses a `Makefile` to simplify all setup and execution steps.
 
-6.  **Stopping the Application:**
-    ```bash
-    docker-compose down
-    ```
-    * This stops and removes the containers. Add `-v` if you also want to remove the named volumes (database data and logs): `docker-compose down -v`
+### 1. Local Development (Python & Pyenv)
 
----
+This method is for running the application directly on your machine without Docker.
 
-## Getting Started: How to Run the Project
+1. **Set up the Environment:**
+    This command creates a virtual environment, installs all dependencies (including development tools), and prepares your local setup.
 
-This project can be run in three different environments: locally using a virtual environment, or inside Docker for development or production. All workflows are managed via the `Makefile`.
-
-### 1. Running Locally (with `.venv`)
-
-This workflow is for running the application directly on your machine without Docker.
-
-1.  **Setup and Installation:**
-    This command creates a local virtual environment (`.venv`) and installs all necessary dependencies, including development tools.
     ```bash
     make dev
     ```
 
-2.  **Run the Application:**
-    This starts the server using your local virtual environment. It will automatically use your `local` configuration and enable hot-reloading for any code changes.
+2. **Configure Environment Variables:**
+    Copy the example `.env` file and add your OpenAI API key.
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Now, edit the `.env` file to include your `OPENAI_API_KEY` and any other necessary settings.
+
+### 2. Docker-Based Development
+
+This is the recommended approach for a consistent and isolated development environment.
+
+1. **Build and Start the Services:**
+    - These commands will build the necessary Docker images and start the development containers in the background.
+
+    ```bash
+    make docker-build-dev
+    make docker-up-dev
+    ```
+
+    - Refer other commands to know more about prod development and env.
+
+## How to Start the Service
+
+- **If running locally:**
+
     ```bash
     make run-local
     ```
 
-### 2. Running with Docker (Development Environment)
+  - This will start the server at 8000 port.
 
-This is the recommended workflow for active development. It provides a consistent environment with live-reloading for your code.
+- **If running with Docker:**
+  - The service is already running after `make docker-up-dev`. You can view logs with `make docker-logs-dev`.
+  - This will start the server at 8001 port.
 
-1.  **Build the Development Image:**
-    This command builds the `app-dev` Docker image using `Dockerfile.dev`, which includes all your development dependencies.
-    ```bash
-    make docker-build-dev
-    ```
-
-2.  **Start the Development Service:**
-    This starts the container in the background. Your local `./app` directory is mounted into the container, so any changes you make to the code will be reflected instantly.
-    ```bash
-    make docker-up-dev
-    ```
-
-3.  **View Logs (Optional):**
-    To see the application's output and confirm it started correctly, run:
-    ```bash
-    make docker-logs-dev
-    ```
-    *(Press `Ctrl+C` to stop viewing the logs; the container will continue running.)*
-
-    You can access the development server at **[http://localhost:8001/docs](http://localhost:8001/docs)**.
-
-### 3. Running with Docker (Production Environment)
-
-This workflow simulates how your application would run in a production setting. It uses the lean, optimized production image.
-
-1.  **Build the Production Image:**
-    This command builds the `app-prod` Docker image using the multi-stage `Dockerfile`, which contains only production dependencies.
-    ```bash
-    make docker-build
-    ```
-
-2.  **Start the Production Service:**
-    This starts the production container in the background.
-    ```bash
-    make docker-up
-    ```
-
-3.  **View Logs (Optional):**
-    To check the logs for the production service, run:
-    ```bash
-    make docker-logs
-    ```
-
-    You can access the production server at **[http://localhost:8000/docs](http://localhost:8000/docs)**.
-
-### Stopping All Docker Containers
-
-When you are finished, you can stop and remove all containers, networks, and volumes with a single command:
-```bash
-make docker-down
-```
+Once the service is running, visit **[http://localhost:8000](http://localhost:8000)**. The homepage will guide you to all available resources, including API documentation and dashboards.
 
 ## Usage
 
-- Doc Batches: https://platform.openai.com/docs/api-reference/batch
-- Doc Files: https://platform.openai.com/docs/api-reference/files
+### API Usage
 
-* **Adding a Batch Record (POST `/batches/`):**
-    * After you create a batch job via the OpenAI API, you register it in this tracker.
-    * Send a POST request with a JSON body containing at least the required fields from the OpenAI response:
-    ```json
-    {
-      "openai_batch_id": "batch_abc123xyz", // Required: ID from OpenAI
-      "input_file_id": "file_input456",   // Required: Input file ID used
-      "endpoint": "/v1/chat/completions", // Required: Endpoint targetted
-      "completion_window": "24h",         // Optional: Defaults to "24h" if not sent
-      "status": "validating",             // Optional: Defaults to "pending", update with OpenAI status
-      "openai_created_at": 1678886400,    // Optional: Unix timestamp from OpenAI
-      "metadata": {                       // Optional: Metadata sent to OpenAI
-        "customer_id": "cust_123",
-        "description": "Weekly report generation"
-       }
-    }
-    ```
-* **Updating a Batch Record (PATCH `/batches/{openai_batch_id}`):**
-    * Used to update the status, file IDs, timestamps, errors, etc., typically after polling the OpenAI API for the batch status.
-    * Send a PATCH request with a JSON body containing only the fields you want to update:
-    ```json
-    {
-      "status": "completed",
-      "output_file_id": "file_output789",
-      "completed_at": 1678890000, // Unix timestamp
-      "request_counts": {
-         "total": 100,
-         "completed": 98,
-         "failed": 2
-       }
-    }
-    ```
-    * Or for a failed batch:
-    ```json
-    {
-        "status": "failed",
-        "error_file_id": "file_err_abc",
-        "failed_at": 1678891000, // Unix timestamp
-        "errors": {
-            "data": [
-                {
-                    "code": "invalid_input",
-                    "message": "Missing required field on line 42.",
-                    "param": null,
-                    "line": 42
-                }
-            ]
-        },
-        "request_counts": {
-            "total": 50,
-            "completed": 10,
-            "failed": 40
-        }
-    }
-    ```
+The application provides a comprehensive REST API for managing batch jobs and files. For detailed information on all available endpoints, request bodies, and responses, please refer to the interactive API documentation:
 
-* **Viewing Batches:** Access the dashboard URL (`/batches/dashboard`) or use the GET API endpoints (`/batches/` or `/batches/{openai_batch_id}`).
+- **Swagger UI:** [/docs](/docs)
+- **ReDoc:** [/redoc](/redoc)
 
-## Development
+### Input/Output File Structure
 
-* For local development without rebuilding the image constantly, you can uncomment the volume mount in `docker-compose.yml` (`- ./app:/app/app`). Uvicorn's hot reload (used when running `uvicorn app.main:app --reload`) will pick up code changes.
-* to load the dummy main file use `uvicorn app.dummy_main:app --reload --port 8001`  cmd.
-* To access the database directly (e.g., using `psql` or a GUI client), connect to `localhost:5433` (or the host port you mapped in `docker-compose.yml`) using the credentials from your `.env` file.
+For reference, the `resources/` directory contains examples of the input and output file structures used by the OpenAI Batch API. These files can serve as a guide when you are creating your own batch jobs.
 
-## Future Enhancements
+## Contribution & Code of Conduct
 
-* **Automated Status Polling:** Implement background tasks (e.g., using Celery, ARQ, or FastAPI's `BackgroundTasks`) to periodically query the OpenAI API (`client.batches.retrieve(batch_id)`) for status updates and automatically PATCH the results to the `/batches/{openai_batch_id}` endpoint.
-* **File Content Retrieval:** Add API endpoints to fetch and potentially display content from the OpenAI output/error files using the Files API (`client.files.content(file_id)`). Requires handling OpenAI API key securely.
-* **Batch Creation Trigger:** Add an endpoint to *initiate* the OpenAI batch creation process (uploading the file via `client.files.create` and then creating the batch via `client.batches.create`), automatically registering the new batch in this tracker upon success.
-* **User Authentication/Authorization:** Secure the dashboard and API endpoints.
-* **Database Migrations:** Implement Alembic for managing database schema changes.
-* **Improved Dashboard:** Add filtering, sorting, pagination, direct links to OpenAI file content (if implemented), and a manual refresh button per batch.
-* **Testing:** Add unit and integration tests.
+We welcome contributions from the community! Whether it's reporting a bug, suggesting a feature, or submitting a pull request, your help is greatly appreciated.
 
+Please read our **[Contribution Guidelines](CONTRIBUTING.md)** to get started.
+
+This project is governed by our **[Code of Conduct](CODE_OF_CONDUCT.md)**. By participating, you are expected to uphold this code.
+
+## Contact & Thank You
+
+Thank you for your interest in the OpenAI Batch Tracker. If you have any questions, feel free to open an issue on GitHub. We look forward to your contributions!

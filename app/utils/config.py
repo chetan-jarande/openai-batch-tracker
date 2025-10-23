@@ -3,7 +3,7 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
-from app.core.logging_config import get_logger
+from app.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     CONF_ENV: Evironments = Field(
         default=Evironments.LOCAL,
         description="Configuration environment",
+    )
+    PORTFOLIO_URL: str = Field(
+        default="https://chetan-jarande.vercel.app/",
+        description="Portfolio URL to be displayed on the homepage",
     )
 
     # Uvicorn server settings (if running from docker, Docker Compose handles this)

@@ -1,7 +1,7 @@
 from typing import Any, Generic, List, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
-from app.core.logging_config import get_logger
+from app.utils.logging_config import get_logger
 from app.schemas.batch import BatchEndpoint
 
 logger = get_logger(__name__)

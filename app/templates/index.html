@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAI Batch Tracker API</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">BatchTracker</div>
+            <nav class="tabs">
+                <a href="https://github.com/chetan-jarande/openai-batch-tracker" class="tab">About</a>
+                <a href="{{ portfolio_url }}" class="tab">Portfolio</a>
+                <div class="tab-slider"></div>
+            </nav>
+        </header>
+
+        <main class="hero">
+            <h1>OpenAI Batch Tracker</h1>
+            <p>An API for tracking OpenAI Batch API jobs and managing associated files.</p>
+            <div class="card-grid">
+                <a href="/docs" class="card">
+                    <h3>API Docs</h3>
+                    <p>Interactive API documentation (Swagger UI).</p>
+                </a>
+                <a href="/redoc" class="card">
+                    <h3>ReDoc</h3>
+                    <p>Alternative API documentation.</p>
+                </a>
+                <a href="/docs-viewer" class="card">
+                    <h3>Project Docs</h3>
+                    <p>View project documentation.</p>
+                </a>
+                <a href="/docs-viewer/README.md" class="card">
+                    <h3>README</h3>
+                    <p>View the project's README file.</p>
+                </a>
+                <a href="/batches/list?view=true" class="card">
+                    <h3>Batches Dashboard</h3>
+                    <p>View batches data.</p>
+                </a>
+                <a href="/dummy/view/batches" class="card">
+                    <h3>Batches Dashboard</h3>
+                    <p>View mock batches data.</p>
+                </a>
+                <a href="/files/list?view=true" class="card">
+                    <h3>Files Dashboard</h3>
+                    <p>View files data.</p>
+                </a>
+                <a href="/dummy/view/files" class="card">
+                    <h3>Files Dashboard</h3>
+                    <p>View mock files data.</p>
+                </a>
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('static', path='/script.js') }}"></script>
+</body>
+
+</html>

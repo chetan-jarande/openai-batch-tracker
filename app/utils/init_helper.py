@@ -1,7 +1,7 @@
 from typing import Optional
 from openai import OpenAI, AsyncOpenAI
-from app.core.config import settings, OpenAIMode
-from app.core.logging_config import get_logger
+from app.utils.config import settings, OpenAIMode
+from app.utils.logging_config import get_logger
 
 
 logger = get_logger(__name__)

@@ -1,4 +1,15 @@
-from fastapi import APIRouter, HTTPException, status, Path
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Request,
+    status,
+    Path,
+    Query,
+    Depends,
+)
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
 from openai._exceptions import (
     APIError,
     APIConnectionError,
@@ -6,13 +17,18 @@ from openai._exceptions import (
     NotFoundError as OpenAINotFoundError,
 )
 
-from app.utils.deps import OpenAIClient
-from app.core.logging_config import get_logger
 from app.schemas import batch as batch_schema
+from app.utils.common import format_unix_timestamp
+from app.utils.deps import OpenAIClient
+from app.utils.logging_config import get_logger
+
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+templates = Jinja2Templates(directory="app/templates")
+templates.env.filters["unix_ts"] = format_unix_timestamp
 
 
 # # Docs:
@@ -79,7 +95,7 @@ def retrieve_batch(
     batch_id: str = Path(
         ...,
         description="The ID of the OpenAI batch to retrieve.",
-        example="batch-abc123",
+        examples=["batch-abc123"],
         min_length=1,
     ),
 ) -> batch_schema.OpenAIBatchResponse:
@@ -125,7 +141,7 @@ def cancel_batch(
     batch_id: str = Path(
         ...,
         description="The ID of the OpenAI batch to cancel.",
-        example="batch-abc123",
+        examples=["batch-abc123"],
         min_length=1,
     ),
 ) -> batch_schema.OpenAIBatchResponse:
@@ -157,8 +173,8 @@ def cancel_batch(
 
 
 @router.get(
-    "/list-batches",
-    response_model=batch_schema.ListBatchesResponse,
+    "/list",
+    response_model=None,
     status_code=status.HTTP_200_OK,
     summary="List OpenAI Batches",
     description=(
@@ -167,16 +183,33 @@ def cancel_batch(
     ),
 )
 def list_batches(
-    params: batch_schema.ListBatchesRequestParams,
+    request: Request,
     openai_client: OpenAIClient,
-) -> batch_schema.ListBatchesResponse:
+    view: bool = Query(False, description="If true, returns an HTML dashboard view of the files."),
+    params: batch_schema.ListBatchesRequestParams = Depends(),
+) -> batch_schema.ListBatchesResponse | HTMLResponse:
     """
     List OpenAI batches with optional pagination.
     """
     try:
-        response = openai_client.batches.list(after=params.after, limit=params.limit)
+        params = params.model_dump()
+        response = openai_client.batches.list(after=params.get("after"), limit=params.get("limit", 20))
         # Convert each raw batch into our response model
         batches = [batch_schema.OpenAIBatchResponse(**item) for item in response.get("data", [])]
+
+        if view:
+            return templates.TemplateResponse(
+                request,
+                "batches_dashboard.html",
+                {
+                    "batches": batches,
+                    "total_count": len(batches),
+                    "params": params,
+                    "first_id": response.get("first_id"),
+                    "last_id": response.get("last_id"),
+                    "has_more": response.get("has_more", False),
+                },
+            )
         return batch_schema.ListBatchesResponse(
             object=response.get("object", "list"),
             data=batches,

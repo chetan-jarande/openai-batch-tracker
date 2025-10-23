@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Documentation</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Documentation Files</h1>
+        <div class="card-grid">
+            {% for doc in docs %}
+            <a href="{{ url_for('view_doc_content', filename=doc) }}" class="card">
+                <h3>{{ doc }}</h3>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

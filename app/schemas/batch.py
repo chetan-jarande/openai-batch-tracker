@@ -1,8 +1,10 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Dict, Any, List
 from enum import StrEnum
 
-from openai.types import Batch as OpenAIBatch
+from openai.types import (
+    Batch as OpenAIBatch,
+    BatchUsage as OpenAIBatchUsage,
+)
 
 
 class OpenAIError(BaseModel):
@@ -27,7 +29,7 @@ class OutputTokensDetails(BaseModel):
     reasoning_tokens: int = Field(..., description="The number of reasoning tokens.")
 
 
-class OpenAIUsage(BaseModel):
+class OpenAIUsage(OpenAIBatchUsage):
     """
     Represents token usage details including input tokens, output tokens,
     a breakdown of output tokens, and the total tokens used.
@@ -143,7 +145,7 @@ class OpenAIBatchResponse(OpenAIBatch):
         ...,
         description="The API endpoint used by the batch.  batches are also restricted to a maximum of 50,000 embedding inputs across all requests in the batch.",
     )
-    errors: Dict[str, List[OpenAIError]] | None = Field(
+    errors: dict[str, list[OpenAIError]] | None = Field(
         None,
         description="Structured errors encountered during processing (adheres to OpenAI spec).",
         examples=[{"data": [], "object": "list"}],
@@ -221,11 +223,11 @@ class ListBatchesRequestParams(BaseModel):
     """Schema for query parameters when listing batches from OpenAI.
     Link: https://platform.openai.com/docs/api-reference/batch/list"""
 
-    after: Optional[str] = Field(
+    after: str | None = Field(
         None,
         description="A cursor for use in pagination. `after` is an object ID that defines your place in the list.",
     )
-    limit: Optional[int] = Field(
+    limit: int | None = Field(
         20,
         ge=1,
         le=100,
@@ -237,9 +239,9 @@ class ListBatchesResponse(BaseModel):
     """Schema for paginated list of batches."""
 
     object: str
-    data: List[OpenAIBatchResponse]
-    first_id: Optional[str]
-    last_id: Optional[str]
+    data: list[OpenAIBatchResponse]
+    first_id: str | None
+    last_id: str | None
     has_more: bool
 
     model_config = ConfigDict(from_attributes=True)
