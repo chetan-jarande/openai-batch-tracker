@@ -26,6 +26,7 @@ MARKDOWN_EXTRAS = ["fenced-code-blocks", "tables", "header-ids"]
     response_class=HTMLResponse,
     name="view_docs_list",
     summary="List Documentation Files",
+    operation_id="list_docs",
     description="Retrieves a list of available Markdown documents from the `/docs` directory and includes a link to the project's LICENSE file.",
 )
 async def list_docs(request: Request):
@@ -52,6 +53,7 @@ async def list_docs(request: Request):
     response_class=HTMLResponse,
     name="view_doc_content",
     summary="View a Document or License",
+    operation_id="get_doc",
     description="Renders the content of a specific documentation file or the project's LICENSE. It handles Markdown files and plain text files differently.",
 )
 async def get_doc(request: Request, filename: str):

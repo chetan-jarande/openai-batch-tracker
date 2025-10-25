@@ -18,7 +18,12 @@ templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["unix_ts"] = format_unix_timestamp
 
 
-@router.get("/view/batches", response_class=HTMLResponse, name="view_dummy_batches")
+@router.get(
+    "/view/batches",
+    response_class=HTMLResponse,
+    name="view_dummy_batches",
+    operation_id="view_dummy_batches",
+)
 async def read_dummy_batches(request: Request):
     mock_data = create_mock_batches(25)
     return templates.TemplateResponse(
@@ -31,7 +36,12 @@ async def read_dummy_batches(request: Request):
     )
 
 
-@router.get("/view/files", response_class=HTMLResponse, name="view_dummy_files")
+@router.get(
+    "/view/files",
+    response_class=HTMLResponse,
+    name="view_dummy_files",
+    operation_id="view_dummy_files",
+)
 async def read_dummy_files(request: Request):
     mock_data = create_mock_files(15)
     return templates.TemplateResponse(
@@ -44,11 +54,19 @@ async def read_dummy_files(request: Request):
     )
 
 
-@router.get("/raw/batches", response_model=List[OpenAIBatchResponse])
+@router.get(
+    "/raw/batches",
+    response_model=List[OpenAIBatchResponse],
+    operation_id="list_dummy_batches",
+)
 async def list_batches():
     return create_mock_batches(25)
 
 
-@router.get("/raw/files", response_model=List[OpenAIFileObjectSchema])
+@router.get(
+    "/raw/files",
+    response_model=List[OpenAIFileObjectSchema],
+    operation_id="list_dummy_files",
+)
 async def list_files():
     return create_mock_files(10)

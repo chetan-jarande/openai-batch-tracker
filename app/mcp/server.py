@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 CUSTOM_ROUTE_MAPS = [
     # GET with path params → ResourceTemplates
-    # API's such as `/products/{id}`
+    # API's such as `/files/{id}`
     RouteMap(
         methods=["GET"],
         pattern=r".*\{.*\}.*",

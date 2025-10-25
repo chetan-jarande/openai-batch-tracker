@@ -2,7 +2,6 @@ from typing import Any, AsyncGenerator
 from openai.types import FileDeleted
 from fastapi import (
     APIRouter,
-    Query,
     Request,
     HTTPException,
     status,
@@ -56,6 +55,7 @@ templates.env.filters["unix_ts"] = format_unix_timestamp
     response_model=file_schema.OpenAIFileObjectSchema,
     status_code=status.HTTP_201_CREATED,
     summary="Upload File to OpenAI",
+    operation_id="upload_openai_file",
     description="Uploads a file to OpenAI<br/>More details in Doc: https://platform.openai.com/docs/api-reference/files/create",
 )
 def upload_file_to_openai(
@@ -131,43 +131,24 @@ def upload_file_to_openai(
         file.file.close()
 
 
-@router.get(
-    "/list",
-    response_model=None,
-    status_code=status.HTTP_200_OK,
-    summary="List Files from OpenAI Account",
-    description=(
-        "Retrieves a list of files directly from the user's OpenAI account. Supports pagination.</br>"
-        "See the [OpenAI List File API docs](https://platform.openai.com/docs/api-reference/files/list) for details."
-    ),
-)
-def list_files_from_openai(
-    request: Request,
+def get_openai_files_list(
     client: OpenAIClient,
-    view: bool = Query(False, description="If true, returns an HTML dashboard view of the files."),
-    params: file_schema.OpenAIFileListRequestParams = Depends(),
-) -> list[file_schema.OpenAIFileObjectSchema] | HTMLResponse:
+    data: file_schema.OpenAIFileListRequestParams,
+) -> list[file_schema.OpenAIFileObjectSchema]:
     """
-    Lists files directly from the OpenAI account associated with the API key.
-    Query parameters are now encapsulated in the `params` model.
-
+    Retrieves a list of files directly from the OpenAI account associated with the API key.
     Args:
-        client: OpenAI API client dependency.
-        params: Pydantic model for query parameters (e.g., `limit`, `offset`).
-
-    Returns:
-        A list of file objects from OpenAI, serialized as dictionaries.
-
-    Raises:
-        HTTPException: For OpenAI API errors.
-
-    Note:
-        The response is a list of dictionaries directly from the OpenAI client's `FileObject.model_dump()`.
+        client:
+            OpenAI API client dependency.
+        data:
+            Pydantic model for query parameters (e.g., `limit`, `offset`).
+        Returns:
+            A list of file objects from OpenAI, serialized as dictionaries.
     """
+
     try:
-        # Pass parameters from the Pydantic model to the OpenAI client
         # The `model_dump(exclude_none=True)` ensures only provided params are sent
-        params = params.model_dump(exclude_none=True)
+        params = data.model_dump(exclude_none=True)
         logger.info(f"Listing files from OpenAI with params: {params}")
         openai_files_list_page = client.files.list(**params)
 
@@ -180,17 +161,6 @@ def list_files_from_openai(
         file_count = len(response_data)
         logger.info(f"Retrieved {file_count} files from OpenAI.")
 
-        if view:
-            logger.debug("View mode enabled. Rendering files_dashboard.html")
-            return templates.TemplateResponse(
-                request,
-                "files_dashboard.html",
-                {
-                    "files": response_data,
-                    "total_count": file_count,
-                    "params": params,
-                },
-            )
         return response_data
 
     except (APIConnectionError, RateLimitError) as e:
@@ -214,10 +184,73 @@ def list_files_from_openai(
 
 
 @router.get(
+    "/list",
+    response_model=list[file_schema.OpenAIFileObjectSchema],
+    status_code=status.HTTP_200_OK,
+    summary="List Files from OpenAI Account for OpenAI API Key",
+    operation_id="list_openai_files",
+    description=(
+        "Retrieves a list of files directly from the user's OpenAI account. Supports pagination.</br>"
+        "See the [OpenAI List File API docs](https://platform.openai.com/docs/api-reference/files/list) for details."
+    ),
+)
+def list_files_from_openai(
+    client: OpenAIClient,
+    params: file_schema.OpenAIFileListRequestParams = Depends(),
+) -> list[file_schema.OpenAIFileObjectSchema]:
+    """
+    Lists files directly from the OpenAI account associated with the API key.
+    Query parameters are now encapsulated in the `params` model.
+
+    Args:
+        client: OpenAI API client dependency.
+        params: Pydantic model for query parameters (e.g., `limit`, `offset`).
+
+    Returns:
+        A list of file objects from OpenAI, serialized as dictionaries.
+
+    Raises:
+        HTTPException: For OpenAI API errors.
+
+    Note:
+        The response is a list of dictionaries directly from the OpenAI client's `FileObject.model_dump()`.
+    """
+    return get_openai_files_list(client, params)
+
+
+@router.get(
+    "/view/list",
+    response_class=HTMLResponse,
+    summary="View Files Dashboard",
+    operation_id="view_openai_files_dashboard",
+)
+def view_files_dashboard(
+    request: Request,
+    client: OpenAIClient,
+    params: file_schema.OpenAIFileListRequestParams = Depends(),
+) -> HTMLResponse:
+    """
+    Renders the files dashboard HTML page.
+    """
+    response_data = get_openai_files_list(client, params)
+    logger.debug("View mode enabled. Rendering files_dashboard.html")
+    return templates.TemplateResponse(
+        request,
+        "files_dashboard.html",
+        {
+            "files": response_data,
+            "total_count": len(response_data),
+            "params": params,
+        },
+    )
+
+
+@router.get(
     "/{openai_file_id}",
     response_model=file_schema.OpenAIFileObjectSchema,
     status_code=status.HTTP_200_OK,
     summary="Retrieve File Details from OpenAI",
+    operation_id="get_openai_file_details",
     description=(
         "Retrieves details of a specific file from OpenAI using its OpenAI File ID.</br>"
         "See the [OpenAI Retrieve File API docs](https://platform.openai.com/docs/api-reference/files/retrieve) for details."
@@ -270,6 +303,7 @@ def retrieve_file_from_openai(
     response_model=FileDeleted,
     status_code=status.HTTP_200_OK,
     summary="Delete File from OpenAI",
+    operation_id="delete_openai_file",
     description=(
         "Deletes a file from OpenAI's servers</br>"
         "See the [OpenAI Delete File API docs](https://platform.openai.com/docs/api-reference/files/delete) for details."
@@ -348,6 +382,7 @@ def delete_openai_file(
     "content/v1/{openai_file_id}",
     status_code=status.HTTP_200_OK,
     summary="Retrieve File Details from OpenAI",
+    operation_id="get_openai_file_content_v1",
     description=(
         "Retrieves details of a specific file from OpenAI using its OpenAI File ID. returns the file content as JSON.</br>"
         "See the [OpenAI Retrieve File Content API docs](https://platform.openai.com/docs/api-reference/files/retrieve-contents) for details."
@@ -413,6 +448,7 @@ def retrieve_file_content_from_openai_v1(
     "/content/v2/{openai_file_id}",
     summary="Retrieve File Content or Trigger Download from OpenAI",
     status_code=status.HTTP_200_OK,
+    operation_id="get_openai_file_content_v2",
     description=(
         "Retrieves file content from OpenAI. If 'download_as' is specified, triggers a file download.</br>"
         "Otherwise, returns content based on 'action' (JSON, text, bytes).</br>"
