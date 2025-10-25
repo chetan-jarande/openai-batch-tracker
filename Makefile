@@ -20,15 +20,17 @@ venv:
 	"$(PYENV_BIN)" local "$(PYTHON_VERSION)"
 	"$(PYENV_BIN)" exec python -m venv --clear --upgrade-deps "$(VENV_ROOT)"
 	"$(PYENV_BIN)" local --unset
+	@echo "Installing uv tool..."
+	@"$(VENV_ROOT)/bin/pip" install --upgrade uv
 
 deps: venv
-	"$(VENV_ROOT)/bin/pip" install -e '.'
+	"$(VENV_ROOT)/bin/uv" pip install -e '.'
 
 mcp: venv
-	"$(VENV_ROOT)/bin/pip" install -e '.[mcp]'
+	"$(VENV_ROOT)/bin/uv" pip install -e '.[mcp]'
 
 dev: venv
-	"$(VENV_ROOT)/bin/pip" install -e '.[mcp,dev]'
+	"$(VENV_ROOT)/bin/uv" pip install -e '.[mcp,dev]'
 
 test-local: dev
 	"$(VENV_ROOT)/bin/pytest" -vvv
