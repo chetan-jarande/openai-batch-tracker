@@ -11,7 +11,6 @@ logger = get_logger(__name__)
 class Environments(StrEnum):
     DEV = "dev"
     PROD = "prod"
-    MCP = "mcp"
 
 
 class OpenAIMode(StrEnum):

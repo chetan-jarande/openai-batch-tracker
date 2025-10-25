@@ -9,8 +9,10 @@ from app.utils.config import settings, Environments
 from app.api import files as files_api
 from app.api import batches as batches_api
 from app.api import docs as docs_api
+from app.mcp.server import create_mcp_server
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
 from app.utils.logging_config import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -88,11 +90,11 @@ app.include_router(files_api.router, prefix="/files", tags=["Files"])
 app.include_router(batches_api.router, prefix="/batches", tags=["Batches"])
 app.include_router(docs_api.router, prefix="/docs-viewer", tags=["Documentation"])
 
-if settings.CONF_ENV in [Environments.DEV, Environments.MCP]:
+if settings.CONF_ENV == Environments.DEV:
     from app.api import dummy as dummy_api
 
     app.include_router(dummy_api.router, prefix="/dummy", tags=["Dummy Endpoints"])
-    logger.info("Running in DEV/MCP environment - included dummy endpoints.")
+    logger.info("Running in DEV environment - included dummy endpoints.")
 
 
 # --- Root Endpoint ---
@@ -125,47 +127,43 @@ def service_status_check():
     return JSONResponse(content=response_content, status_code=status.HTTP_200_OK)
 
 
-if settings.CONF_ENV in [Environments.DEV, Environments.MCP]:
-    from app.mcp.server import create_mcp_server
-    from contextlib import asynccontextmanager
+# --- MCP Integration ---
+mcp_server = create_mcp_server(app)
+mcp_app = mcp_server.http_app(path="/mcp")
 
-    mcp_server = create_mcp_server(app)
-    mcp_app = mcp_server.http_app(path="/mcp")
 
-    @asynccontextmanager
-    async def combined_lifespan(app: FastAPI):
-        """Combined lifespan for FastAPI and MCP apps.
-        Last In, First Out" (LIFO) execution order.
-        - Doc: https://gofastmcp.com/integrations/fastapi#combining-lifespans"""
-        async with lifespan(app):
-            # Run the Startup logic of the FASTAPI app
+@asynccontextmanager
+async def combined_lifespan(app: FastAPI):
+    """Combined lifespan for FastAPI and MCP apps.
+    Last In, First Out" (LIFO) execution order.
+    - Doc: https://gofastmcp.com/integrations/fastapi#combining-lifespans"""
+    async with lifespan(app):
+        # Run the Startup logic of the FASTAPI app
 
-            # Using the default lifespan of the MCP app
-            async with mcp_app.lifespan(app):
-                # Run the Startup logic of the MCP app
-                # Now the Main application runs here
-                yield
-                # Run the Shutdown logic of the MCP app
+        # Using the default lifespan of the MCP app
+        async with mcp_app.lifespan(app):
+            # Run the Startup logic of the MCP app
+            # Now the Main application runs here
+            yield
+            # Run the Shutdown logic of the MCP app
 
-            # Runs the Shutdown logic of the FASTAPI app
+        # Runs the Shutdown logic of the FASTAPI app
 
-    combined_app = FastAPI(
-        title="OpenAI Batch Tracker API with MCP",
-        routes=[
-            *mcp_app.routes,
-            *app.routes,
-        ],
-        summary="Model Context Protocol & API",
-        description="MCP & APIs for tracking OpenAI Batch API jobs and managing associated files.",
-        version=app.version,
-        lifespan=combined_lifespan,
-    )
 
-    app_to_run = combined_app
-    app_to_run.mount("/mcp", mcp_app)
+combined_app = FastAPI(
+    title="OpenAI Batch Tracker API with MCP",
+    routes=[
+        *mcp_app.routes,
+        *app.routes,
+    ],
+    summary="Model Context Protocol & API",
+    description="MCP & APIs for tracking OpenAI Batch API jobs and managing associated files.",
+    version=app.version,
+    lifespan=combined_lifespan,
+)
 
-else:
-    app_to_run = app
+combined_app.mount("/mcp", mcp_app)
+
 
 # Doc: https://gofastmcp.com/integrations/fastapi#offering-an-llm-friendly-api
 # Now you have:
@@ -179,7 +177,7 @@ if __name__ == "__main__":
     logger.info("For Env: %s, starting app on port %d with reload=%s", settings.CONF_ENV, port, should_reload)
 
     uvicorn.run(
-        app="app.main:app_to_run",
+        app="app.main:combined_app",
         host=settings.SERVER_HOST,
         port=port,
         reload=should_reload,

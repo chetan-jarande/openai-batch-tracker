@@ -48,31 +48,6 @@ services:
     networks:
       - batch_tracker_network
 
-  # --- MCP Service ---
-  app-mcp:
-    profiles:
-      - mcp
-    build:
-      context: .
-      dockerfile: Dockerfile.mcp
-    container_name: batch_tracker_app_mcp
-    env_file:
-      - .env
-    environment:
-      - CONF_ENV=mcp
-      - SERVER_PORT=8002
-      - PYTHONPATH=/app
-    volumes:
-      # Mount local source code for live-reloading untill live reloading is needed for the development with MCP
-      - ./app:/app/app
-      - ./docs:/app/docs
-      - ./tests:/app/tests
-      - app_logs:/app/logs
-    ports:
-      - "8002:8002"
-    networks:
-      - batch_tracker_network
-
 # Define named volumes for persistent data
 volumes:
   app_logs:

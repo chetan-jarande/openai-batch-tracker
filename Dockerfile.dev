@@ -25,7 +25,7 @@ COPY LICENSE .
 COPY Makefile .
 
 # Install all dependencies, including the [dev] extras
-RUN uv pip install --no-cache-dir '.[mcp,dev]'
+RUN uv pip install --no-cache-dir '.[dev]'
 
 # Copy the application source code
 # This is done so the container can run without a volume mount if needed,
