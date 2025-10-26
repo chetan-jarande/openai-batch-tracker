@@ -5,11 +5,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from app.utils.config import settings, Environments
-from app.api import files as files_api
+
 from app.api import batches as batches_api
 from app.api import docs as docs_api
-from app.mcp.server import create_mcp_server
+from app.api import files as files_api
+from app.mcp.server import create_mcp_server, create_mcp_app, McpAppModes
+from app.utils.config import settings, Environments
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
 from app.utils.logging_config import get_logger
 
@@ -45,7 +46,7 @@ async def lifespan(app: FastAPI):
     finally:
         # This block executes regardless of whether an exception occurred in the try block or during app execution.
         logger.info("Application lifespan: Initiating shutdown sequence...")
-        run_shutdown_logic()
+        await run_shutdown_logic()
         logger.info("Application lifespan: Shutdown sequence completed.")
 
 
@@ -129,7 +130,12 @@ def service_status_check():
 
 # --- MCP Integration ---
 mcp_server = create_mcp_server(app)
-mcp_app = mcp_server.http_app(path="/mcp")
+mode = (
+    McpAppModes.EVENT_STORE  # Use Redis-backed event store for production
+    if settings.CONF_ENV == Environments.PROD
+    else McpAppModes.STATEFUL  # Dev uses in-memory session management
+)
+mcp_app = create_mcp_app(mcp_server, mode=mode)
 
 
 @asynccontextmanager

@@ -29,7 +29,7 @@ MARKDOWN_EXTRAS = ["fenced-code-blocks", "tables", "header-ids"]
     operation_id="list_docs",
     description="Retrieves a list of available Markdown documents from the `/docs` directory and includes a link to the project's LICENSE file.",
 )
-async def list_docs(request: Request):
+async def list_docs(request: Request) -> HTMLResponse:
     """
     Serves a page that lists all available Markdown documents.
 
@@ -56,7 +56,7 @@ async def list_docs(request: Request):
     operation_id="get_doc",
     description="Renders the content of a specific documentation file or the project's LICENSE. It handles Markdown files and plain text files differently.",
 )
-async def get_doc(request: Request, filename: str):
+async def get_doc(request: Request, filename: str) -> HTMLResponse:
     """
     Reads a specific file and renders its content in an appropriate HTML template.
 
