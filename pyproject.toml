@@ -30,6 +30,7 @@ dependencies = [
     "markdown2>=2.4.13",
     # MCP server integration
     "fastmcp>=2.12.5",
+    "redis==7.0.0",
 ]
 
 [project.optional-dependencies]

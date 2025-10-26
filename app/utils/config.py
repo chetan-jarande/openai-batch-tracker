@@ -78,6 +78,34 @@ class Settings(BaseSettings):
         description="Mode for OpenAI client: 'sync' for synchronous, 'async' for asynchronous",
     )
 
+    # Redis settings for session management in production
+    REDIS_HOST: str = Field(
+        default="redis",
+        description="Redis host for session storage",
+    )
+    REDIS_PORT: int = Field(
+        default=6379,
+        description="Redis port for session storage",
+    )
+    REDIS_DB: int = Field(
+        default=0,
+        description="Redis database for session storage",
+    )
+    REDIS_USERNAME: str | None = None
+    REDIS_PASSWORD: str | None = None
+    REDIS_TLS: bool = False
+
+    @property
+    def REDIS_URL(self) -> str:
+        auth = ""
+        if self.REDIS_PASSWORD:
+            if self.REDIS_USERNAME:
+                auth = f"{self.REDIS_USERNAME}:{self.REDIS_PASSWORD}@"
+            else:
+                auth = f":{self.REDIS_PASSWORD}@"
+        scheme = "rediss" if self.REDIS_TLS else "redis"
+        return f"{scheme}://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+
     # Model configuration for pydantic-settings
     # This allows loading from a .env file (e.g., for local development)
     # Ensure a .env file is present or environment variables are set.
@@ -104,6 +132,8 @@ def get_settings() -> Settings:
 settings: Settings = get_settings()
 
 MCP_SERVER_URL = f"http://localhost:{settings.SERVER_PORT}/mcp"
+
+REDIS_URL = settings.REDIS_URL
 
 
 if __name__ == "__main__":
