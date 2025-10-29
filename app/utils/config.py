@@ -8,9 +8,8 @@ from app.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-class Evironments(StrEnum):
-    LOCAL = "local"
-    STAGING = "staging"
+class Environments(StrEnum):
+    DEV = "dev"
     PROD = "prod"
 
 
@@ -28,12 +27,12 @@ class Settings(BaseSettings):
     """
 
     PROJECT_NAME: str = "OpenAI Batch Tracker"
-    CONF_ENV: Evironments = Field(
-        default=Evironments.LOCAL,
+    CONF_ENV: Environments = Field(
+        default=Environments.DEV,
         description="Configuration environment",
     )
     PORTFOLIO_URL: str = Field(
-        default="https://chetan-jarande.vercel.app/",
+        default="https://your-portfolio-url.com",
         description="Portfolio URL to be displayed on the homepage",
     )
 
@@ -42,6 +41,12 @@ class Settings(BaseSettings):
     SERVER_PORT: int = Field(
         default=8000,
         description="Port for the FastAPI server",
+    )
+
+    # # MCP settings
+    FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER: bool = Field(
+        default=True,
+        description="Enable the new OpenAPI parser in FastMCP, Doc: https://gofastmcp.com/integrations/fastapi",
     )
 
     # # OpeanAI settings
@@ -73,6 +78,34 @@ class Settings(BaseSettings):
         description="Mode for OpenAI client: 'sync' for synchronous, 'async' for asynchronous",
     )
 
+    # Redis settings for session management in production
+    REDIS_HOST: str = Field(
+        default="redis",
+        description="Redis host for session storage",
+    )
+    REDIS_PORT: int = Field(
+        default=6379,
+        description="Redis port for session storage",
+    )
+    REDIS_DB: int = Field(
+        default=0,
+        description="Redis database for session storage",
+    )
+    REDIS_USERNAME: str | None = None
+    REDIS_PASSWORD: str | None = None
+    REDIS_TLS: bool = False
+
+    @property
+    def REDIS_URL(self) -> str:
+        auth = ""
+        if self.REDIS_PASSWORD:
+            if self.REDIS_USERNAME:
+                auth = f"{self.REDIS_USERNAME}:{self.REDIS_PASSWORD}@"
+            else:
+                auth = f":{self.REDIS_PASSWORD}@"
+        scheme = "rediss" if self.REDIS_TLS else "redis"
+        return f"{scheme}://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+
     # Model configuration for pydantic-settings
     # This allows loading from a .env file (e.g., for local development)
     # Ensure a .env file is present or environment variables are set.
@@ -98,14 +131,24 @@ def get_settings() -> Settings:
 # For gloabal access within the application
 settings: Settings = get_settings()
 
+MCP_SERVER_URL = f"http://localhost:{settings.SERVER_PORT}/mcp"
+
+REDIS_URL = settings.REDIS_URL
+
+
 if __name__ == "__main__":
     try:
         current_settings = get_settings()
-        print("Successfully loaded settings:")
-        print(f"  Project Name: {current_settings.PROJECT_NAME}")
-        print(f"  OpenAI API Key: {current_settings.OPENAI_API_KEY}")
-        print(f"  Log Level: {current_settings.LOG_LEVEL}")
+        logger.info("Successfully loaded settings:")
+        logger.info(f"  Project Name: {current_settings.PROJECT_NAME}")
+        # Log only a part of the key to avoid exposing secrets
+        api_key_display = (
+            f"{current_settings.OPENAI_API_KEY.get_secret_value()[:4]}..."
+            if current_settings.OPENAI_API_KEY
+            else "Not set"
+        )
+        logger.info(f"  OpenAI API Key: {api_key_display}")
     except ValueError as ve:
-        print(f"Configuration Error: {ve}")
+        logger.error(f"Configuration Error: {ve}")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}")

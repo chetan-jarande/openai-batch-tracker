@@ -5,12 +5,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from app.utils.config import settings, Evironments
-from app.api import files as files_api
+
 from app.api import batches as batches_api
 from app.api import docs as docs_api
+from app.api import files as files_api
+from app.mcp.server import create_mcp_server, create_mcp_app, McpAppModes
+from app.utils.config import settings, Environments
 from app.utils.init_helper import run_startup_logic, run_shutdown_logic
 from app.utils.logging_config import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -43,7 +46,7 @@ async def lifespan(app: FastAPI):
     finally:
         # This block executes regardless of whether an exception occurred in the try block or during app execution.
         logger.info("Application lifespan: Initiating shutdown sequence...")
-        run_shutdown_logic()
+        await run_shutdown_logic()
         logger.info("Application lifespan: Shutdown sequence completed.")
 
 
@@ -88,11 +91,11 @@ app.include_router(files_api.router, prefix="/files", tags=["Files"])
 app.include_router(batches_api.router, prefix="/batches", tags=["Batches"])
 app.include_router(docs_api.router, prefix="/docs-viewer", tags=["Documentation"])
 
-if settings.CONF_ENV == Evironments.LOCAL:
+if settings.CONF_ENV == Environments.DEV:
     from app.api import dummy as dummy_api
 
     app.include_router(dummy_api.router, prefix="/dummy", tags=["Dummy Endpoints"])
-    logger.info("Running in LOCAL environment - included dummy endpoints.")
+    logger.info("Running in DEV environment - included dummy endpoints.")
 
 
 # --- Root Endpoint ---
@@ -125,15 +128,63 @@ def service_status_check():
     return JSONResponse(content=response_content, status_code=status.HTTP_200_OK)
 
 
+# --- MCP Integration ---
+mcp_server = create_mcp_server(app)
+mode = (
+    McpAppModes.STATELESS
+    if settings.CONF_ENV == Environments.PROD
+    else McpAppModes.STATEFUL  # uses in-memory session management
+)
+mcp_app = create_mcp_app(mcp_server, mode=mode)
+
+
+@asynccontextmanager
+async def combined_lifespan(app: FastAPI):
+    """Combined lifespan for FastAPI and MCP apps.
+    Last In, First Out" (LIFO) execution order.
+    - Doc: https://gofastmcp.com/integrations/fastapi#combining-lifespans"""
+    async with lifespan(app):
+        # Run the Startup logic of the FASTAPI app
+
+        # Using the default lifespan of the MCP app
+        async with mcp_app.lifespan(app):
+            # Run the Startup logic of the MCP app
+            # Now the Main application runs here
+            yield
+            # Run the Shutdown logic of the MCP app
+
+        # Runs the Shutdown logic of the FASTAPI app
+
+
+combined_app = FastAPI(
+    title="OpenAI Batch Tracker API with MCP",
+    routes=[
+        *mcp_app.routes,
+        *app.routes,
+    ],
+    summary="Model Context Protocol & API",
+    description="MCP & APIs for tracking OpenAI Batch API jobs and managing associated files.",
+    version=app.version,
+    lifespan=combined_lifespan,
+)
+
+
+
+# Doc: https://gofastmcp.com/integrations/fastapi#offering-an-llm-friendly-api
+# Now you have:
+# - Regular API: http://localhost:8000/
+# - LLM-friendly MCP: http://localhost:8000/mcp/
+# Both served from the same FastAPI application!
+
 if __name__ == "__main__":
     port = settings.SERVER_PORT
-    should_reload = True if settings.CONF_ENV == Evironments.LOCAL else False
+    should_reload = settings.CONF_ENV == Environments.DEV
     logger.info("For Env: %s, starting app on port %d with reload=%s", settings.CONF_ENV, port, should_reload)
 
     uvicorn.run(
-        app="app.main:app",
+        app="app.main:combined_app",
         host=settings.SERVER_HOST,
         port=port,
         reload=should_reload,
-        workers=5,
+        workers=1 if should_reload else 5,
     )

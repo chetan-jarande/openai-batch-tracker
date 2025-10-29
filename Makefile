@@ -11,7 +11,7 @@ else
 	PYENV_BIN=pyenv
 endif
 
-export CONF_ENV?=local
+export CONF_ENV?=dev
 
 venv:
 	@echo "Using pyenv from '$(PYENV_BIN)'"
@@ -20,12 +20,14 @@ venv:
 	"$(PYENV_BIN)" local "$(PYTHON_VERSION)"
 	"$(PYENV_BIN)" exec python -m venv --clear --upgrade-deps "$(VENV_ROOT)"
 	"$(PYENV_BIN)" local --unset
+	@echo "Installing uv tool..."
+	@"$(VENV_ROOT)/bin/pip" install --upgrade uv
 
 deps: venv
-	"$(VENV_ROOT)/bin/pip" install -e '.'
+	"$(VENV_ROOT)/bin/uv" pip install -e '.'
 
 dev: venv
-	"$(VENV_ROOT)/bin/pip" install -e '.[dev]'
+	"$(VENV_ROOT)/bin/uv" pip install -e '.[dev]'
 
 test-local: dev
 	"$(VENV_ROOT)/bin/pytest" -vvv
@@ -54,6 +56,7 @@ docker-build:
 docker-build-fresh:
 	docker-compose -p $(PROJECT_NAME) --profile prod build --no-cache
 
+
 # Build the development docker image
 docker-build-dev:
 	docker-compose -p $(PROJECT_NAME) --profile dev build
@@ -61,6 +64,7 @@ docker-build-dev:
 # Start the services in detached mode
 docker-up:
 	docker-compose -p $(PROJECT_NAME) --profile prod up -d
+
 
 # Start the development service in detached mode
 docker-up-dev:
@@ -77,6 +81,7 @@ docker-restart: docker-down docker-up
 docker-logs:
 	docker-compose -p $(PROJECT_NAME) --profile prod logs -f
 
+
 # View the logs from the development service
 docker-logs-dev:
 	docker-compose -p $(PROJECT_NAME) --profile dev logs -f
@@ -88,6 +93,7 @@ docker-shell:
 # Access a shell inside the running development app container
 docker-shell-dev:
 	docker-compose -p $(PROJECT_NAME) --profile dev exec app-dev /bin/bash
+
 
 # Show this help message
 help:

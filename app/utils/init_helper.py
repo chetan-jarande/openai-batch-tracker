@@ -1,7 +1,8 @@
 from typing import Optional
 from openai import OpenAI, AsyncOpenAI
-from app.utils.config import settings, OpenAIMode
+from app.utils.config import settings, OpenAIMode, Environments
 from app.utils.logging_config import get_logger
+from app.utils.redis import get_redis_client, close_redis_client
 
 
 logger = get_logger(__name__)
@@ -71,6 +72,8 @@ def run_startup_logic():
         initialize_openai_client(settings.OPENAI_MODE)
         logger.info("OpenAI client initialized successfully.")
         # Any other startup tasks can be added here
+        if settings.CONF_ENV == Environments.PROD:
+            get_redis_client()
 
         logger.info("All startup tasks completed.")
     except Exception as e:
@@ -81,10 +84,12 @@ def run_startup_logic():
         raise e
 
 
-def run_shutdown_logic():
+async def run_shutdown_logic():
     """
     Orchestrates all shutdown tasks.
     """
     logger.info("Executing application shutdown logic...")
     # Add any shutdown tasks here
+    if settings.CONF_ENV == Environments.PROD:
+        await close_redis_client()
     logger.info("All shutdown tasks completed.")

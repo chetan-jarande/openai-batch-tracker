@@ -1,56 +1,71 @@
 version: "3.8"
 
 services:
-  # --- Production Service ---
-  app-prod:
-    profiles:
-      - prod
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: batch_tracker_app_prod
-    env_file:
-      - .env
-    environment:
-      - CONF_ENV=prod
-    volumes:
-      # Mount a volume for persistent logs
-      - app_logs:/app/logs
-    ports:
-      - "8000:8000"
-    networks:
-      - batch_tracker_network
-
   # --- Development Service ---
   app-dev:
-    profiles:
-      - dev
+    profiles: [dev]
     build:
       context: .
       dockerfile: Dockerfile.dev
     container_name: batch_tracker_app_dev
-    env_file:
-      - .env
+    env_file: [.env]
     environment:
-      - CONF_ENV=local
+      - CONF_ENV=dev
+      - SERVER_PORT=8000
       - PYTHONPATH=/app
     volumes:
-      # Mount local source code for live-reloading
       - ./app:/app/app
       - ./docs:/app/docs
       - ./tests:/app/tests
       - app_logs:/app/logs
-    ports:
-      - "8001:8000" # Use a different host port to avoid conflicts
-    networks:
-      - batch_tracker_network
+    ports: ["8000:8000"]
+    networks: [batch_tracker_network]
+    depends_on:
+      redis:
+        condition: service_healthy
 
-# Define named volumes for persistent data
+  # --- Production Service ---
+  app-prod:
+    profiles: [prod]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: batch_tracker_app_prod
+    env_file: [.env]
+    environment:
+      - CONF_ENV=prod
+      - SERVER_PORT=8001
+    volumes:
+      - app_logs:/app/logs
+    ports: ["8001:8001"]
+    networks: [batch_tracker_network]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --- Redis Service (available in dev & prod) ---
+  redis:
+    image: redis:7-alpine
+    container_name: batch_tracker_redis
+    profiles: [dev, prod]
+    command: ["redis-server", "--appendonly", "yes"]
+    networks: [batch_tracker_network]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
 volumes:
   app_logs:
-    driver: local
+  redis_data:
 
-# Define a custom network for the services
 networks:
   batch_tracker_network:
     driver: bridge

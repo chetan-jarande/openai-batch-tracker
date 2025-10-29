@@ -23,16 +23,20 @@ dependencies = [
     # For HTML templating
     "jinja2>=3.1.6",
     # OpenAI client
-    "openai>=1.97.1",
+    "openai>=2.5.0",
     # For multipart form data (file uploads)
     "python-multipart>=0.0.9",
-    "uv>=0.2.11",
+    # For Markdown to HTML rendering
     "markdown2>=2.4.13",
+    # MCP server integration
+    "fastmcp>=2.12.5",
+    "redis==7.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "pytest-asyncio>=1.2.0",
     "ruff>=0.5.0",
     "mypy>=1.10.0",
 ]
