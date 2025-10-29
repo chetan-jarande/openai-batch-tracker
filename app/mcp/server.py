@@ -4,7 +4,9 @@ from fastmcp import FastMCP
 
 # Ussing the experimental parser as FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER=true is set in env
 from fastmcp.experimental.server.openapi import RouteMap, MCPType
-from fastmcp.server.http import create_streamable_http_app, StarletteWithLifespan, EventStore
+from fastmcp.server.http import create_streamable_http_app, StarletteWithLifespan
+
+from mcp.server.streamable_http import EventStore
 
 from app.mcp.redis_event_store import RedisEventStore
 from app.utils.logging_config import get_logger
@@ -65,25 +67,31 @@ def create_mcp_app(
             sticky routing by Mcp-Session-Id, or you will see 400 “No valid session ID”.
       - `EVENT_STORE`:
           * True stateful sessions shared across workers via a central event store (e.g., Redis).
-          * Optional: still add sticky routing to reduce cross-worker chatter.
+          * Experimental: still add sticky routing to reduce cross-worker chatter.
+          * sticky routing should be keyed on the Mcp-Session-Id from header;
+            MCP Streamable HTTP uses this header to keep sessions.
+
+    Docs:
+      - [MCP Transports](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)
     """
-    # Important: expose sub-app at "/" and MOUNT it at "/mcp" later to avoid double-prefixing.
-    # path is "/" here; we'll mount under "/mcp" in the main app.
+    # Sine we are using the Route-merge pattern it expects the MCP app itself to be mounted at /mcp
+    # (i.e., the sub-app's internal path is /mcp)
     logger.info(f"Creating MCP App with {mode}")
     match mode:
         case McpAppModes.STATELESS:
             return mcp_server.http_app(
-                path="/",
+                path="/mcp",
                 json_response=True,
                 stateless_http=True,  # multi-worker friendly
-                transport="http",  # or "streamable-http" (both hit the same factory)
+                transport="streamable-http",  # or "http" (both hit the same factory)
             )
 
         case McpAppModes.STATEFUL:
             return mcp_server.http_app(
-                path="/",
+                path="/mcp",
                 json_response=True,
                 # stateless_http defaults to False => stateful per-process
+                transport="streamable-http",
             )
 
         case McpAppModes.EVENT_STORE:
@@ -94,7 +102,7 @@ def create_mcp_app(
 
             return create_streamable_http_app(
                 server=mcp_server,
-                streamable_http_path="/",
+                streamable_http_path="/mcp",
                 event_store=redis_store,  # enable cross-worker resumability
                 json_response=True,
                 # stateless_http=False    # default (stateful)

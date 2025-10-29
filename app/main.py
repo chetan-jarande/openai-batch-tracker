@@ -131,9 +131,9 @@ def service_status_check():
 # --- MCP Integration ---
 mcp_server = create_mcp_server(app)
 mode = (
-    McpAppModes.EVENT_STORE  # Use Redis-backed event store for production
+    McpAppModes.STATELESS
     if settings.CONF_ENV == Environments.PROD
-    else McpAppModes.STATEFUL  # Dev uses in-memory session management
+    else McpAppModes.STATEFUL  # uses in-memory session management
 )
 mcp_app = create_mcp_app(mcp_server, mode=mode)
 
@@ -168,7 +168,6 @@ combined_app = FastAPI(
     lifespan=combined_lifespan,
 )
 
-combined_app.mount("/mcp", mcp_app)
 
 
 # Doc: https://gofastmcp.com/integrations/fastapi#offering-an-llm-friendly-api

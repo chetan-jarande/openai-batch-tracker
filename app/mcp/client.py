@@ -46,7 +46,7 @@ async def get_tools(client: Client):
     tools = await client.list_tools()
     logger.info("Available tools:")
     for tool in tools:
-        logger.info(f"- {tool}")
+        logger.info(f"- {tool.name}")
     return tools
 
 
