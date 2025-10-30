@@ -61,11 +61,13 @@ def create_mcp_app(
       - `STATELESS`:
           * Server keeps no cross-request session state.
           * Scales horizontally with multiple workers (no stickiness required).
-          * Note: you may see some errors due to race condition in reading the event stream.
+          * Note:
+            - sessions cannot be resumed after disconnection.
+            - Default json_response=None: returns SSE stream; no JSON wrapping.
       - `STATEFUL`:
           * Per-process sessions (in-memory). With multiple workers you must ensure
             sticky routing by Mcp-Session-Id, or you will see 400 “No valid session ID”.
-      - `EVENT_STORE`:
+      - `EVENT_STORE`: [Experimental]
           * True stateful sessions shared across workers via a central event store (e.g., Redis).
           * Experimental: still add sticky routing to reduce cross-worker chatter.
           * sticky routing should be keyed on the Mcp-Session-Id from header;
@@ -81,7 +83,7 @@ def create_mcp_app(
         case McpAppModes.STATELESS:
             return mcp_server.http_app(
                 path="/mcp",
-                json_response=True,
+                json_response=None,
                 stateless_http=True,  # multi-worker friendly
                 transport="streamable-http",  # or "http" (both hit the same factory)
             )
