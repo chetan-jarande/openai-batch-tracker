@@ -11,6 +11,7 @@ An advanced FastAPI application designed to track, monitor, and manage OpenAI ba
 - **Documentation Viewer:** An integrated system to render and view project documentation (`/docs`) and the `LICENSE` file.
 - **Dockerized Environment:** Fully containerized with Docker and managed via a `Makefile` for consistent development and production environments.
 - **Robust API:** A well-documented API for managing batches and files, built with FastAPI.
+- **MCP Support**: Integrated [Model Context Protocol (MCP)](docs/MCP_SUPPORT.md) for enhanced AI model interaction.
 
 ## Prerequisites
 
