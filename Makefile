@@ -48,6 +48,9 @@ run:
 run-local:
 	"$(VENV_ROOT)/bin/python" -m 'app.main'
 
+inspector:
+	npx @modelcontextprotocol/inspector --config inspector.mcp.json --server local-server
+
 # Build the docker images for the services, using cache by default
 docker-build:
 	docker-compose -p $(PROJECT_NAME) --profile prod build
@@ -70,6 +73,10 @@ docker-up:
 docker-up-dev:
 	docker-compose -p $(PROJECT_NAME) --profile dev up -d
 
+# Force recreate the development service
+docker-recreate-dev:
+	docker-compose -p $(PROJECT_NAME) --profile dev up -d --force-recreate
+
 # Stop and remove the services, networks, and volumes for a clean slate
 docker-down:
 	docker-compose -p $(PROJECT_NAME) down --volumes
@@ -85,6 +92,9 @@ docker-logs:
 # View the logs from the development service
 docker-logs-dev:
 	docker-compose -p $(PROJECT_NAME) --profile dev logs -f
+
+docker-logs-inspector:
+	docker-compose -p $(PROJECT_NAME) --profile dev logs -f inspector
 
 # Access a shell inside the running app container
 docker-shell:
@@ -108,13 +118,15 @@ help:
 	@echo "  docker-shell        Access a shell in the production app container"
 	@echo ""
 	@echo "Development Commands:"
-	@echo "  docker-build-dev    Build the development Docker image"
-	@echo "  docker-up-dev       Start the development service in the background"
-	@echo "  docker-logs-dev     Follow the development service logs"
-	@echo "  docker-shell-dev    Access a shell in the development app container"
+	@echo "  docker-build-dev        Build the development Docker image"
+	@echo "  docker-up-dev           Start the development service in the background"
+	@echo "  docker-logs-dev         Follow the development service logs"
+	@echo "  docker-logs-inspector   Follow the MCP Inspector service logs"
+	@echo "  docker-shell-dev        Access a shell in the development app container"
 	@echo ""
 	@echo "Local Commands:"
-	@echo "  dev                 Create a venv and install all dependencies"
-	@echo "  run-local           Run the application locally (uses logic in main.py)"
+	@echo "  dev                   Create a venv and install all dependencies"
+	@echo "  run-local             Run the application locally (uses logic in main.py)"
+	@echo "  inspector             Run the MCP Inspector with local configuration"
 
-.PHONY: docker-build docker-build-fresh docker-build-dev docker-up docker-up-dev docker-down docker-restart docker-logs docker-logs-dev docker-shell docker-shell-dev help run run-local
+.PHONY: docker-build docker-build-fresh docker-build-dev docker-up docker-up-dev docker-down docker-restart docker-logs docker-logs-dev docker-shell docker-shell-dev help run run-local docker-logs-inspector docker-ps docker-recreate-dev inspector
