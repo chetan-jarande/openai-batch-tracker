@@ -43,6 +43,38 @@ To enhance the development experience with MCP in VS Code, you can add the follo
 
 This configuration defines the endpoint for the MCP server, making it easy to send requests and view responses within the editor.
 
+## MCP Inspector
+
+For more advanced debugging and interaction with the MCP server, you can use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector). This tool provides a web-based interface for exploring and testing MCP servers.
+
+To run the inspector, you'll need Node.js installed. Then, you can use the following command:
+
+```bash
+npx @modelcontextprotocol/inspector
+```
+
+This will start the inspector, which you can access in your web browser at [`http://localhost:6274`](http://localhost:6274). From there, you can connect to your running MCP server.
+
+### Docker Workflow
+
+The MCP Inspector is also integrated into the Docker development workflow. When you run the development environment, the inspector service is started automatically.
+
+You can access it by opening the URL provided in the inspector's logs. To view the logs, run:
+
+```bash
+make docker-logs-inspector
+```
+
+Then, copy the URL from the logs (which includes a security token) and paste it into your browser.
+
+#### Connecting to the Server
+
+The inspector is now configured to automatically connect to the `app-dev` service when it starts. You should see the tools and resources listed in the UI without needing to manually configure the connection.
+You can go to below url to access the inspector.
+```bash
+http://localhost:6274
+```
+
 ## Framework
 
 This MCP integration is built using the [FastMCP](https://gofastmcp.com/integrations/fastapi) framework, which simplifies the creation of MCP-compliant servers in Python.

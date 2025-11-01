@@ -15,8 +15,20 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Upgrade pip and install uv
 RUN pip install --upgrade pip uv
 
-# Install make so the CMD can be executed
-RUN apt-get update && apt-get install -y make --no-install-recommends && rm -rf /var/lib/apt/lists/*
+# Install make and Node.js
+RUN apt-get update -o Acquire::Retries=3 && \
+    # Install prerequisites for adding custom repositories
+    apt-get install -y ca-certificates curl gnupg make --no-install-recommends && \
+    # Add NodeSource GPG key
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
+    # Add NodeSource repository for Node.js 24.x (LTS)
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
+    # Update package lists again and install nodejs
+    apt-get update -o Acquire::Retries=3 && \
+    apt-get install -y nodejs --no-install-recommends && \
+    # Clean up
+    rm -rf /var/lib/apt/lists/*
 
 # Copy files required for package installation
 COPY pyproject.toml .
