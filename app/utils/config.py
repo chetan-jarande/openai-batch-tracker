@@ -148,6 +148,7 @@ if __name__ == "__main__":
             else "Not set"
         )
         logger.info(f"  OpenAI API Key: {api_key_display}")
+        logger.info(f"Redis URL: {settings.REDIS_URL}")
     except ValueError as ve:
         logger.error(f"Configuration Error: {ve}")
     except Exception as e:
