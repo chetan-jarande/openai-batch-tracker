@@ -10,7 +10,7 @@ authors = [
   { name="Chetan Jarande", email="chetan.legacy@myworld.com" },
 ]
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 requires-python = ">=3.12"
 dependencies = [
     # Core FastAPI framework
