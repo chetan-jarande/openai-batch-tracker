@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Literal
 from fastapi import FastAPI
 from fastmcp import FastMCP
 
@@ -60,11 +61,14 @@ class McpAppModes(StrEnum):
 def create_mcp_app(
     mcp_server: FastMCP,
     mode: McpAppModes = McpAppModes.STATEFUL,
+    path: Literal["/", "/mcp"] = "/mcp",
 ) -> StarletteWithLifespan:
     """
     Build an MCP HTTP app using Streamable HTTP.
 
-    Modes:
+    mcp_server:(FastMCP)
+      - The FastMCP server instance.
+    mode:
       - `STATELESS`:
           * Server keeps no cross-request session state.
           * Scales horizontally with multiple workers (no stickiness required).
@@ -79,6 +83,13 @@ def create_mcp_app(
           * Experimental: still add sticky routing to reduce cross-worker chatter.
           * sticky routing should be keyed on the Mcp-Session-Id from header;
             MCP Streamable HTTP uses this header to keep sessions.
+    path:
+      - The path to mount the MCP application on. Defaults to "/mcp".
+      - '/': Use when MCP app to be mounted at root. on "/mcp" path.
+      - '/mcp': Use when you want to merge the routes under "/mcp" path.
+
+    Returns:
+        A Starlette application with a lifespan handler.
 
     Docs:
       - [MCP Transports](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)
@@ -89,7 +100,7 @@ def create_mcp_app(
     match mode:
         case McpAppModes.STATELESS:
             return mcp_server.http_app(
-                path="/mcp",
+                path=path,
                 json_response=None,
                 stateless_http=True,  # multi-worker friendly
                 transport="streamable-http",  # or "http" (both hit the same factory)
@@ -97,7 +108,7 @@ def create_mcp_app(
 
         case McpAppModes.STATEFUL:
             return mcp_server.http_app(
-                path="/mcp",
+                path=path,
                 json_response=True,
                 # stateless_http defaults to False => stateful per-process
                 transport="streamable-http",
@@ -111,7 +122,7 @@ def create_mcp_app(
 
             return create_streamable_http_app(
                 server=mcp_server,
-                streamable_http_path="/mcp",
+                streamable_http_path=path,
                 event_store=redis_store,  # enable cross-worker resumability
                 json_response=True,
                 # stateless_http=False    # default (stateful)
