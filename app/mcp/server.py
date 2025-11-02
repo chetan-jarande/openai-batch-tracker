@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 
 if settings.FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER:
-    logger.info("Ussing the experimental parser as FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER=true is set in env")
+    logger.info("Using the experimental parser as FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER=true is set in env")
     from fastmcp.experimental.server.openapi import RouteMap, MCPType
 else:
     from fastmcp.server.openapi import RouteMap, MCPType
