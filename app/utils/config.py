@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # # MCP settings
     FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER: bool = Field(
-        default=True,
+        ...,
         description="Enable the new OpenAPI parser in FastMCP, Doc: https://gofastmcp.com/integrations/fastapi",
     )
 
@@ -107,7 +107,7 @@ class Settings(BaseSettings):
         return f"{scheme}://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     # Model configuration for pydantic-settings
-    # This allows loading from a .env file (e.g., for local development)
+    # This allows loading from a .env file
     # Ensure a .env file is present or environment variables are set.
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -148,6 +148,7 @@ if __name__ == "__main__":
             else "Not set"
         )
         logger.info(f"  OpenAI API Key: {api_key_display}")
+        logger.info(f"Redis URL: {settings.REDIS_URL}")
     except ValueError as ve:
         logger.error(f"Configuration Error: {ve}")
     except Exception as e:

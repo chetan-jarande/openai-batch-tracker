@@ -2,16 +2,23 @@ from enum import StrEnum
 from fastapi import FastAPI
 from fastmcp import FastMCP
 
-# Ussing the experimental parser as FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER=true is set in env
-from fastmcp.experimental.server.openapi import RouteMap, MCPType
 from fastmcp.server.http import create_streamable_http_app, StarletteWithLifespan
 
 from mcp.server.streamable_http import EventStore
 
 from app.mcp.redis_event_store import RedisEventStore
 from app.utils.logging_config import get_logger
+from app.utils.config import settings
+
 
 logger = get_logger(__name__)
+
+
+if settings.FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER:
+    logger.info("Using the experimental parser as FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER=true is set in env")
+    from fastmcp.experimental.server.openapi import RouteMap, MCPType
+else:
+    from fastmcp.server.openapi import RouteMap, MCPType
 
 
 CUSTOM_ROUTE_MAPS = [
