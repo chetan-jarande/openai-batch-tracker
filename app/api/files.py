@@ -1,4 +1,5 @@
-from typing import Any, AsyncGenerator
+from typing import Any, List
+import asyncio
 from openai.types import FileDeleted
 from fastapi import (
     APIRouter,
@@ -19,21 +20,13 @@ from fastapi.responses import (
 )
 from fastapi.templating import Jinja2Templates
 
-from openai._exceptions import (
-    APIConnectionError,
-    RateLimitError,
-    APIStatusError,
-    NotFoundError as OpenAINotFoundError,
-)
-from openai._streaming import (
-    Stream as OpenAIStream,
-)
 from openai import HttpxBinaryResponseContent
 
 from app.schemas import file as file_schema
 from app.utils.common import format_unix_timestamp
-from app.utils.deps import OpenAIClient
+from app.utils.deps import OpenAIClient, AsyncOpenAIClient
 from app.utils.logging_config import get_logger
+from app.utils.error_handlers import handle_openai_errors, async_handle_openai_errors
 
 
 logger = get_logger(__name__)
@@ -44,93 +37,86 @@ templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["unix_ts"] = format_unix_timestamp
 
 
-# TODO:
-# Future scope:
-# - Provide support for multiple files in this endpoint.
-#   - doc: https://fastapi.tiangolo.com/tutorial/request-files/#multiple-file-uploads-with-additional-metadata
-
-
+# support for multiple files in this endpoint.
+# - doc: https://fastapi.tiangolo.com/tutorial/request-files/#multiple-file-uploads-with-additional-metadata
 @router.post(
     "/upload",
-    response_model=file_schema.OpenAIFileObjectSchema,
+    response_model=List[file_schema.OpenAIFileObjectSchema],
     status_code=status.HTTP_201_CREATED,
-    summary="Upload File to OpenAI",
+    summary="Upload File(s) to OpenAI",
     operation_id="upload_openai_file",
-    description="Uploads a file to OpenAI<br/>More details in Doc: https://platform.openai.com/docs/api-reference/files/create",
+    description="Uploads one or more files to OpenAI<br/>More details in Doc: https://platform.openai.com/docs/api-reference/files/create",
 )
-def upload_file_to_openai(
-    client: OpenAIClient,
-    file: UploadFile = FastApiFile(..., description="The batch input file to upload (e.g., a .jsonl file)."),
+@async_handle_openai_errors
+async def upload_file_to_openai(
+    client: AsyncOpenAIClient,
+    files: List[UploadFile] = FastApiFile(..., description="The batch input file(s) to upload (e.g., .jsonl files)."),
     request_params: file_schema.FileUploadRequest = Depends(),
-) -> file_schema.OpenAIFileObjectSchema:
+) -> List[file_schema.OpenAIFileObjectSchema]:
     """
     Handles file uploads to OpenAI.
-    1.  Receives a file via `UploadFile`.
-    2.  Uploads the file to OpenAI using the `openai` client, with given purpose.
+    1.  Receives one or more files via `UploadFile`.
+    2.  Checks for duplicate filenames in OpenAI (optional but recommended).
+    3.  Uploads the files to OpenAI using the `openai` client, with given purpose.
     Doc:
         - OpenAI Files: https://platform.openai.com/docs/api-reference/files/create
         - FAST API UploadFile with params:
             - https://fastapi.tiangolo.com/tutorial/request-files/#uploadfile-with-additional-metadata
             - https://fastapi.tiangolo.com/tutorial/request-forms-and-files/
     Args:
-        request_params: Pydantic model for form fields like 'purpose' and 'filename'.
-        client: OpenAI API client dependency.
-        file: The file to be uploaded, provided by FastAPI's `UploadFile`.
+        request_params: Pydantic model for form fields like 'purpose'.
+        client: Async OpenAI API client dependency.
+        files: The list of files to be uploaded, provided by FastAPI's `UploadFile`.
 
     Returns:
-        A `OpenAIFileObjectSchema` schema object representing the stored file record.
+        A list of `OpenAIFileObjectSchema` schema objects representing the stored file records.
 
     Raises:
         HTTPException:
+            - 409 (Conflict): If a file with the same name already exists.
             - 400 (Bad Request): If the file upload to OpenAI fails for client-side reasons.
             - 500 (Internal Server Error): For OpenAI API errors.
 
     """
-    # Use the filename from request_params if provided, otherwise from the uploaded file
     purpose = request_params.purpose
+    logger.info(f"Attempting to upload {len(files)} files with purpose: {purpose}")
 
-    logger.info(f"Attempting to upload file: {file.filename}, content type: {file.content_type}, purpose: {purpose}")
+    # Check for existing files with the same purpose to avoid duplicates
+    existing_files_page = await client.files.list(purpose=purpose)
+    # Create a set of existing filenames for quick lookup
+    existing_filenames = {f.filename for f in existing_files_page.data}
 
-    # TODO: Check if a file with the same name (and potentially content) already exists in OpenAI
-    # This is an optional check. For now, we proceed directly to upload.
+    # Check if any of the files to be uploaded already exist
+    for file in files:
+        if file.filename in existing_filenames:
+            logger.warning(f"File '{file.filename}' already exists in OpenAI with purpose '{purpose}'.")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"File '{file.filename}' already exists in OpenAI with purpose '{purpose}'. Please rename or delete the existing file.",
+            )
 
-    try:
-        # The `file.file` attribute is a file-like object.
-        # OpenAI SDK's `client.files.create` expects a file tuple: (filename, file_object, content_type)
-        # or a file-like object directly for the `file` parameter.
-        uploaded_openai_file = client.files.create(
-            file=(file.filename, file.file, file.content_type),  # Pass as a tuple
-            # OR
-            # file=open(file.filename, "rb")
-            purpose=purpose,
-        )
-        logger.info(f"File '{file.filename}' uploaded successfully to OpenAI. File ID: {uploaded_openai_file.id}")
-        return JSONResponse(
-            uploaded_openai_file,
-            status_code=status.HTTP_201_CREATED,
-        )
-    except (APIConnectionError, RateLimitError) as e:
-        logger.error(f"OpenAI API error during file upload for '{file.filename}': {e}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"OpenAI API is currently unavailable or rate limit exceeded: {str(e)}",
-        )
-    except APIStatusError as e:
-        logger.error(f"OpenAI API status error during file upload for '{file.filename}': {e}")
-        raise HTTPException(
-            status_code=e.status_code or status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OpenAI API error: {e.message or str(e)}",
-        )
-    except Exception as e:
-        logger.exception(f"Unexpected error during file upload of '{file.filename}' to OpenAI: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred while uploading the file to OpenAI: {str(e)}",
-        )
-    finally:
-        file.file.close()
+    uploaded_files = []
+
+    async def upload_single_file(file: UploadFile) -> file_schema.OpenAIFileObjectSchema:
+        logger.info(f"Uploading file: {file.filename}, content type: {file.content_type}")
+        try:
+            content = await file.read()
+            uploaded_openai_file = await client.files.create(
+                file=(file.filename, content, file.content_type),
+                purpose=purpose,
+            )
+            logger.info(f"File '{file.filename}' uploaded successfully to OpenAI. File ID: {uploaded_openai_file.id}")
+            return file_schema.OpenAIFileObjectSchema.model_validate(uploaded_openai_file)
+        finally:
+            await file.close()
+
+    # Upload files in parallel
+    uploaded_files = await asyncio.gather(*(upload_single_file(file) for file in files))
+
+    return uploaded_files
 
 
+@handle_openai_errors
 def get_openai_files_list(
     client: OpenAIClient,
     data: file_schema.OpenAIFileListRequestParams,
@@ -145,42 +131,21 @@ def get_openai_files_list(
         Returns:
             A list of file objects from OpenAI, serialized as dictionaries.
     """
+    # The `model_dump(exclude_none=True)` ensures only provided params are sent
+    params = data.model_dump(exclude_none=True)
+    logger.info(f"Listing files from OpenAI with params: {params}")
+    openai_files_list_page = client.files.list(**params)
 
-    try:
-        # The `model_dump(exclude_none=True)` ensures only provided params are sent
-        params = data.model_dump(exclude_none=True)
-        logger.info(f"Listing files from OpenAI with params: {params}")
-        openai_files_list_page = client.files.list(**params)
+    # Validate and convert each FileObject from OpenAI to our Pydantic schema
+    # The OpenAI SDK's FileObject should be compatible if our schema is correct.
+    # The OpenAI SDK v1.x returns a SyncPage[FileObject] which can be iterated.
+    # Each item in `openai_files_list.data` is a `FileObject`.
 
-        # Validate and convert each FileObject from OpenAI to our Pydantic schema
-        # The OpenAI SDK's FileObject should be compatible if our schema is correct.
-        # The OpenAI SDK v1.x returns a SyncPage[FileObject] which can be iterated.
-        # Each item in `openai_files_list.data` is a `FileObject`.
+    response_data = [file_schema.OpenAIFileObjectSchema(**file_obj) for file_obj in openai_files_list_page.data]
+    file_count = len(response_data)
+    logger.info(f"Retrieved {file_count} files from OpenAI.")
 
-        response_data = [file_schema.OpenAIFileObjectSchema(**file_obj) for file_obj in openai_files_list_page.data]
-        file_count = len(response_data)
-        logger.info(f"Retrieved {file_count} files from OpenAI.")
-
-        return response_data
-
-    except (APIConnectionError, RateLimitError) as e:
-        logger.error(f"OpenAI API error during listing files: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"OpenAI API is currently unavailable or rate limit exceeded: {str(e)}",
-        )
-    except APIStatusError as e:
-        logger.error(f"OpenAI API status error during listing files: {e}")
-        raise HTTPException(
-            status_code=e.status_code or status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OpenAI API error: {e.message or str(e)}",
-        )
-    except Exception as e:
-        logger.exception(f"Unexpected error listing files from OpenAI: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred while listing files from OpenAI: {str(e)}",
-        )
+    return response_data
 
 
 @router.get(
@@ -256,6 +221,7 @@ def view_files_dashboard(
         "See the [OpenAI Retrieve File API docs](https://platform.openai.com/docs/api-reference/files/retrieve) for details."
     ),
 )
+@handle_openai_errors
 def retrieve_file_from_openai(
     client: OpenAIClient,
     openai_file_id: str = Path(
@@ -280,22 +246,15 @@ def retrieve_file_from_openai(
                        500 (Internal Server Error) for other OpenAI errors.
     """
     logger.info(f"Retrieving file record from OpenAI for ID: {openai_file_id}")
-    try:
-        openai_file = client.files.retrieve(file_id=openai_file_id)
-        if not openai_file:
-            logger.warning(f"File record with OpenAI File ID '{openai_file_id}' not found in OpenAI.")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"File with OpenAI ID '{openai_file_id}' not found.",
-            )
-        logger.info(f"File record found for OpenAI File ID: {openai_file_id}")
-        return file_schema.OpenAIFileObjectSchema.model_validate(openai_file)
-    except Exception as e:
-        logger.exception(f"Error retrieving file {openai_file_id}: {e}")
+    openai_file = client.files.retrieve(file_id=openai_file_id)
+    if not openai_file:
+        logger.warning(f"File record with OpenAI File ID '{openai_file_id}' not found in OpenAI.")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not retrieve file {openai_file_id} from the OpenAI. Details: {str(e)}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"File with OpenAI ID '{openai_file_id}' not found.",
         )
+    logger.info(f"File record found for OpenAI File ID: {openai_file_id}")
+    return file_schema.OpenAIFileObjectSchema.model_validate(openai_file)
 
 
 @router.delete(
@@ -309,6 +268,7 @@ def retrieve_file_from_openai(
         "See the [OpenAI Delete File API docs](https://platform.openai.com/docs/api-reference/files/delete) for details."
     ),
 )
+@handle_openai_errors
 def delete_openai_file(
     client: OpenAIClient,
     openai_file_id: str = Path(
@@ -338,56 +298,31 @@ def delete_openai_file(
     """
     logger.info(f"Attempting to delete file with OpenAI ID: {openai_file_id}")
 
-    try:
-        openai_delete_response = client.files.delete(file_id=openai_file_id)
-        if openai_delete_response.deleted:
-            logger.info(f"File {openai_file_id} successfully deleted from OpenAI.")
-        else:
-            # This case might not happen if delete always raises error or returns deleted=True
-            logger.warning(
-                f"OpenAI reported file {openai_file_id} as not deleted, but no error raised. Response: {openai_delete_response}"
-            )
-        return JSONResponse(openai_delete_response.model_dump(), status_code=status.HTTP_200_OK)
-
-    except OpenAINotFoundError:
-        logger.warning(f"File {openai_file_id} not found on OpenAI. It might have been already deleted.")
-    except (APIConnectionError, RateLimitError) as e:
-        logger.error(f"OpenAI API error deleting file {openai_file_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"OpenAI API error while deleting file: {str(e)}",
+    openai_delete_response = client.files.delete(file_id=openai_file_id)
+    if openai_delete_response.deleted:
+        logger.info(f"File {openai_file_id} successfully deleted from OpenAI.")
+    else:
+        # This case might not happen if delete always raises error or returns deleted=True
+        logger.warning(
+            f"OpenAI reported file {openai_file_id} as not deleted, but no error raised. Response: {openai_delete_response}"
         )
-    except APIStatusError as e:
-        logger.error(f"OpenAI API status error deleting file {openai_file_id}: {e}")
-        # If it's a 404, we can treat it like OpenAINotFoundError
-        if e.status_code == 404:
-            logger.warning(f"File {openai_file_id} not found on OpenAI (APIStatusError 404).")
-        else:
-            raise HTTPException(
-                status_code=e.status_code or status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"OpenAI API error: {str(e)}",
-            )
-    except Exception as e:
-        logger.exception(f"Unexpected error deleting file {openai_file_id} from OpenAI: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred while deleting the file from OpenAI: {str(e)}",
-        )
+    return JSONResponse(openai_delete_response.model_dump(), status_code=status.HTTP_200_OK)
 
 
 # Retrieve file content
 # # Doc from Batches -> https://platform.openai.com/docs/guides/batch#5-retrieve-the-results
-# TODO: Replace this API with v2 API versions
 @router.get(
     "content/v1/{openai_file_id}",
     status_code=status.HTTP_200_OK,
     summary="Retrieve File Details from OpenAI",
     operation_id="get_openai_file_content_v1",
+    deprecated=True,
     description=(
         "Retrieves details of a specific file from OpenAI using its OpenAI File ID. returns the file content as JSON.</br>"
         "See the [OpenAI Retrieve File Content API docs](https://platform.openai.com/docs/api-reference/files/retrieve-contents) for details."
     ),
 )
+@handle_openai_errors
 def retrieve_file_content_from_openai_v1(
     client: OpenAIClient,
     openai_file_id: str = Path(
@@ -412,38 +347,17 @@ def retrieve_file_content_from_openai_v1(
                        500 (Internal Server Error) for other OpenAI errors.
     """
     logger.info(f"Retrieving file record from OpenAI for ID: {openai_file_id}")
-    try:
-        content: HttpxBinaryResponseContent = client.files.content(file_id=openai_file_id)
-        # TODO: Future scope:
-        # since it returns the file content, we need to check what type of content it is, based on investigation we found out that
-        # it returns `HttpxBinaryResponseContent`, but that class has the property of writing content into a given file as well.
-        # using client.files.content(file_id=openai_file_id).write_to_file(file: str | PathLike[str])
-        #   - here we need to use the  pathlib.Path type of values as inputs
-        # it also have other methods like:
-        #    - json(), content(), text(), bytes(), etc
-        # create a datamodel to accept this pathlike input, methods in which they need there data to be return back to client
-        if not content:
-            logger.warning(
-                f"The File with OpenAI File ID '{openai_file_id}' not found in OpenAI nor it has any content."
-            )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"File with OpenAI ID '{openai_file_id}' not found.",
-            )
-        logger.info(f"File record found for OpenAI File ID: {openai_file_id}")
-        return content.json()
-    except Exception as e:
-        logger.exception(f"Error retrieving file {openai_file_id}: {e}")
+    content: HttpxBinaryResponseContent = client.files.content(file_id=openai_file_id)
+    if not content:
+        logger.warning(f"The File with OpenAI File ID '{openai_file_id}' not found in OpenAI nor it has any content.")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not retrieve file {openai_file_id} from the OpenAI.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"File with OpenAI ID '{openai_file_id}' not found.",
         )
+    logger.info(f"File record found for OpenAI File ID: {openai_file_id}")
+    return content.json()
 
 
-# TODO:
-# Future scope:
-# - Minimize the code duplication in exceptions handling
-# - Add support for downloading file content as a stream using async openAI client
 @router.get(
     "/content/v2/{openai_file_id}",
     summary="Retrieve File Content or Trigger Download from OpenAI",
@@ -455,8 +369,9 @@ def retrieve_file_content_from_openai_v1(
         "See the [OpenAI Retrieve File Content API docs](https://platform.openai.com/docs/api-reference/files/retrieve-contents) for details."
     ),
 )
+@async_handle_openai_errors
 async def retrieve_file_content_from_openai_v2(
-    client: OpenAIClient,
+    client: AsyncOpenAIClient,
     params: file_schema.FileContentRequestParams = Depends(),
     openai_file_id: str = Path(
         ...,
@@ -475,144 +390,46 @@ async def retrieve_file_content_from_openai_v2(
     if params.download_as:
         logger.info(f"Action: Download file as '{params.download_as}' using with_streaming_response.")
 
-        openai_sdk_stream: OpenAIStream[bytes] | None = None
-        try:
-            # Use with_streaming_response for true streaming from OpenAI
-            openai_sdk_stream = client.with_streaming_response.files.content(file_id=openai_file_id)
-
-            async def file_content_generator() -> AsyncGenerator[bytes, None]:
-                try:
-                    async for chunk in openai_sdk_stream:  # Iterate directly over the OpenAIStream
+        # Use with_streaming_response for true streaming from OpenAI
+        # We define the generator to handle the async context manager properly during streaming
+        async def stream_generator():
+            try:
+                # The context manager is entered when the generator starts iterating
+                async with client.with_streaming_response.files.content(file_id=openai_file_id) as response:
+                    async for chunk in response.iter_bytes():
                         yield chunk
-                finally:
-                    if openai_sdk_stream:  # Ensure stream exists before trying to close
-                        await openai_sdk_stream.close()
-                        logger.debug(f"OpenAI SDK stream for download {openai_file_id} closed by generator.")
+            except Exception as e:
+                logger.error(f"Error during file streaming for {openai_file_id}: {e}")
+                # We can't raise HTTP exception here easily once streaming started,
+                # but we can log it. The stream will close.
 
-            download_filename = params.download_as if params.download_as.strip() else f"{openai_file_id}_content.dat"
-            headers = {"Content-Disposition": f'attachment; filename="{download_filename}"'}
-            return StreamingResponse(
-                file_content_generator(),
-                media_type="application/octet-stream",
-                headers=headers,
-            )
-
-        except OpenAINotFoundError:
-            logger.warning(f"File with OpenAI File ID '{openai_file_id}' not found on OpenAI for download.")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"File with OpenAI ID '{openai_file_id}' not found on OpenAI.",
-            )
-        except (APIConnectionError, RateLimitError) as e:
-            logger.error(f"OpenAI API error setting up download stream for {openai_file_id}: {e}")
-            if openai_sdk_stream:
-                await openai_sdk_stream.close()  # Attempt to close if stream was obtained
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"OpenAI API error: {str(e)}",
-            )
-        except APIStatusError as e:
-            logger.error(f"OpenAI API status error setting up download stream for {openai_file_id}: {e}")
-            if openai_sdk_stream:
-                await openai_sdk_stream.close()
-            raise HTTPException(
-                status_code=e.status_code or 500,
-                detail=f"OpenAI API error: {e.message or str(e)}",
-            )
-        except Exception as e:
-            logger.exception(f"Error setting up stream for download for file {openai_file_id}: {e}")
-            if openai_sdk_stream:
-                await openai_sdk_stream.close()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error preparing file for download: {str(e)}",
-            )
+        download_filename = params.download_as if params.download_as.strip() else f"{openai_file_id}_content.dat"
+        headers = {"Content-Disposition": f'attachment; filename="{download_filename}"'}
+        return StreamingResponse(
+            stream_generator(),
+            media_type="application/octet-stream",
+            headers=headers,
+        )
 
     else:  # Not downloading, use existing logic for GET_JSON, GET_TEXT, GET_BYTES
         logger.info(f"Action: {params.action}, fetching full content.")
-        binary_response_obj: HttpxBinaryResponseContent | None = None
-        try:
-            binary_response_obj = client.files.content(file_id=openai_file_id)
 
-            if params.action == file_schema.FileContentAction.GET_JSON:
-                try:
-                    json_content = binary_response_obj.json()
-                    logger.info(f"Returning JSON content for file {openai_file_id}.")
-                    return json_content
-                except Exception as e_json:
-                    logger.exception(f"Error parsing JSON content for file {openai_file_id}: {e_json}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to parse file content as JSON: {str(e_json)}",
-                    )
+        response = await client.files.content(file_id=openai_file_id)
 
-            elif params.action == file_schema.FileContentAction.GET_TEXT:
-                try:
-                    text_content = binary_response_obj.text
-                    logger.info(f"Returning text content for file {openai_file_id}.")
-                    return PlainTextResponse(content=text_content)
-                except Exception as e_text:
-                    logger.exception(f"Error decoding text content for file {openai_file_id}: {e_text}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to decode file content as text: {str(e_text)}",
-                    )
+        match params.action:
+            case file_schema.FileContentAction.GET_JSON:
+                # client.files.content returns AsyncBinaryAPIResponse which has .json() method
+                return response.json()
 
-            elif params.action == file_schema.FileContentAction.GET_BYTES:
-                try:
-                    byte_content = binary_response_obj.content
-                    logger.info(f"Returning byte content for file {openai_file_id}.")
-                    return Response(content=byte_content, media_type="application/octet-stream")
-                except Exception as e_bytes:
-                    logger.exception(f"Error getting byte content for file {openai_file_id}: {e_bytes}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to get file content as bytes: {str(e_bytes)}",
-                    )
+            case file_schema.FileContentAction.GET_TEXT:
+                return PlainTextResponse(content=response.text)
 
-            else:  # Should be caught by Pydantic if action is invalid
+            case file_schema.FileContentAction.GET_BYTES:
+                return Response(content=response.content, media_type="application/octet-stream")
+
+            case _:
                 logger.error(f"Invalid action specified: {params.action} when not downloading.")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid action specified.",
                 )
-
-        except OpenAINotFoundError:
-            logger.warning(
-                f"File with OpenAI File ID '{openai_file_id}' not found on OpenAI for action {params.action}."
-            )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"File with OpenAI ID '{openai_file_id}' not found on OpenAI.",
-            )
-        except (APIConnectionError, RateLimitError) as e:
-            logger.error(
-                f"OpenAI API error retrieving content for file {openai_file_id} (action: {params.action}): {e}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"OpenAI API error: {str(e)}",
-            )
-        except APIStatusError as e:
-            logger.error(
-                f"OpenAI API status error retrieving content for file {openai_file_id} (action: {params.action}): {e}"
-            )
-            raise HTTPException(
-                status_code=e.status_code or 500,
-                detail=f"OpenAI API error: {e.message or str(e)}",
-            )
-        except Exception as e:
-            logger.exception(
-                f"Unexpected error retrieving content for file {openai_file_id} (action: {params.action}): {e}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"An unexpected error occurred: {str(e)}",
-            )
-        finally:
-            if binary_response_obj and hasattr(binary_response_obj, "aclose"):
-                try:
-                    await binary_response_obj.aclose()
-                    logger.debug(f"OpenAI HttpxBinaryResponseContent for {openai_file_id} closed asynchronously.")
-                except Exception as e_close:
-                    logger.warning(f"Error closing HttpxBinaryResponseContent for {openai_file_id}: {e_close}")
