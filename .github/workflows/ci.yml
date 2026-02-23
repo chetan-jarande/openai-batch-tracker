@@ -27,5 +27,8 @@ jobs:
       run: |
         ruff check .
     - name: Test with pytest
+      env:
+        OPENAI_API_KEY: "sk-dummy-key-for-ci-testing"
+        FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER: "true"
       run: |
         pytest

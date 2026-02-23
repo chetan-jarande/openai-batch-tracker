@@ -5,5 +5,13 @@ from app.utils.init_helper import get_openai_client
 from app.utils.config import OpenAIMode
 
 
-OpenAIClient = Annotated[OpenAI, Depends(lambda: get_openai_client(mode=OpenAIMode.SYNC))]
-AsyncOpenAIClient = Annotated[AsyncOpenAI, Depends(lambda: get_openai_client(mode=OpenAIMode.ASYNC))]
+def get_sync_openai_client() -> OpenAI:
+    return get_openai_client(mode=OpenAIMode.SYNC)
+
+
+def get_async_openai_client() -> AsyncOpenAI:
+    return get_openai_client(mode=OpenAIMode.ASYNC)
+
+
+OpenAIClient = Annotated[OpenAI, Depends(get_sync_openai_client)]
+AsyncOpenAIClient = Annotated[AsyncOpenAI, Depends(get_async_openai_client)]

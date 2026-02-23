@@ -1,12 +1,8 @@
 import pytest
-from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.main import app
 from app.schemas.batch import OpenAIBatchResponse
 from app.schemas.file import OpenAIFileObjectSchema
-
-client = TestClient(app)
 
 
 @pytest.mark.parametrize(
@@ -16,12 +12,13 @@ client = TestClient(app)
         ("/dummy/raw/files", OpenAIFileObjectSchema, 10),
     ],
 )
-def test_raw_endpoints_schema_and_content(endpoint, schema, expected_count):
+def test_raw_endpoints_schema_and_content(rest_client, endpoint, schema, expected_count):
     """
     Tests the raw JSON endpoints for schema compliance, content, and data types.
     This is a robust way to catch breaking changes from the OpenAI package.
     """
-    response = client.get(endpoint)
+    response = rest_client.get(endpoint)
+
     assert response.status_code == 200
 
     response_data = response.json()
@@ -51,11 +48,11 @@ def test_raw_endpoints_schema_and_content(endpoint, schema, expected_count):
         ("/dummy/view/files", "<h1>OpenAI Files Dashboard</h1>"),
     ],
 )
-def test_view_endpoints_render_successfully(endpoint, expected_title):
+def test_view_endpoints_render_successfully(rest_client, endpoint, expected_title):
     """
     Tests that the HTML dashboard endpoints render successfully.
     """
-    response = client.get(endpoint)
+    response = rest_client.get(endpoint)
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert expected_title in response.text
