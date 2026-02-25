@@ -75,7 +75,7 @@ def create_batch(
         logger.error(f"OpenAI returned error: {e}")
         status_code = getattr(e, "http_status", status.HTTP_500_INTERNAL_SERVER_ERROR)
         raise HTTPException(status_code=status_code, detail=e.error.get("message", str(e)))
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in create_batch")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -119,7 +119,7 @@ def retrieve_batch(
         status_code = getattr(e, "http_status", status.HTTP_500_INTERNAL_SERVER_ERROR)
         message = getattr(e, "error", {}).get("message", str(e))
         raise HTTPException(status_code=status_code, detail=message)
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in retrieve_batch")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -200,7 +200,7 @@ def get_openai_batch_list(
         status_code = getattr(e, "http_status", status.HTTP_500_INTERNAL_SERVER_ERROR)
         message = getattr(e, "error", {}).get("message", str(e))
         raise HTTPException(status_code=status_code, detail=message)
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in list_batches")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

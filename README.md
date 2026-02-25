@@ -2,6 +2,8 @@
 
 An advanced FastAPI application designed to track, monitor, and manage OpenAI batch processing jobs, featuring a modern, interactive dashboard and a full-fledged documentation viewer.
 
+[![Watch the video](http://img.youtube.com/vi/Tk8gScUETuU/0.jpg)](https://youtu.be/Tk8gScUETuU?si=uN01iC1ayTaNXTwg)
+
 ---
 
 ## Features

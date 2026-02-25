@@ -42,5 +42,5 @@ async def close_redis_client():
             await _redis_client_instance.aclose()
             _redis_client_instance = None
             logger.info("Redis client connection pool closed.")
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to close Redis client connection pool.")

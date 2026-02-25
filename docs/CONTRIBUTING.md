@@ -67,4 +67,8 @@ This guide will focus on the contribution workflow *after* your environment is s
 7. **Open a pull request** to the `main` branch of the original repository.
 8. **Clearly describe your pull request**, including the problem it solves and the changes you've made. Link to any relevant issues.
 
+## Licensing
+
+By contributing to this project, you agree that your contributions will be licensed under its [Apache 2.0 License](../LICENSE).
+
 Thank you again for your contribution!
